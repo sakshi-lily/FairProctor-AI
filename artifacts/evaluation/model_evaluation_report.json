@@ -1,0 +1,298 @@
+{
+  "model_v1_random_split": {
+    "metrics": {
+      "accuracy": 0.9935,
+      "precision": 0.996,
+      "recall": 0.9902,
+      "f1_score": 0.9931,
+      "roc_auc": 0.999,
+      "pr_auc": 0.9991,
+      "confusion_matrix": [
+        [
+          574,
+          2
+        ],
+        [
+          5,
+          504
+        ]
+      ],
+      "sample_counts": {
+        "total": 1085,
+        "positives": 509,
+        "negatives": 576,
+        "true_positives": 504,
+        "true_negatives": 574,
+        "false_positives": 2,
+        "false_negatives": 5
+      }
+    },
+    "confidence_intervals": {
+      "accuracy": [
+        0.9867,
+        0.9969
+      ],
+      "precision": [
+        0.9857,
+        0.9989
+      ],
+      "recall": [
+        0.9772,
+        0.9958
+      ]
+    }
+  },
+  "model_v1_block_split": {
+    "metrics": {
+      "accuracy": 0.9705,
+      "precision": 0.9983,
+      "recall": 0.9505,
+      "f1_score": 0.9738,
+      "roc_auc": 0.9904,
+      "pr_auc": 0.9946,
+      "confusion_matrix": [
+        [
+          458,
+          1
+        ],
+        [
+          31,
+          595
+        ]
+      ],
+      "sample_counts": {
+        "total": 1085,
+        "positives": 626,
+        "negatives": 459,
+        "true_positives": 595,
+        "true_negatives": 458,
+        "false_positives": 1,
+        "false_negatives": 31
+      }
+    },
+    "confidence_intervals": {
+      "accuracy": [
+        0.9587,
+        0.979
+      ],
+      "precision": [
+        0.9906,
+        0.9997
+      ],
+      "recall": [
+        0.9306,
+        0.9649
+      ]
+    }
+  },
+  "model_v2_block_split": {
+    "metrics": {
+      "accuracy": 0.9724,
+      "precision": 1.0,
+      "recall": 0.9521,
+      "f1_score": 0.9755,
+      "roc_auc": 0.9901,
+      "pr_auc": 0.9946,
+      "confusion_matrix": [
+        [
+          459,
+          0
+        ],
+        [
+          30,
+          596
+        ]
+      ],
+      "sample_counts": {
+        "total": 1085,
+        "positives": 626,
+        "negatives": 459,
+        "true_positives": 596,
+        "true_negatives": 459,
+        "false_positives": 0,
+        "false_negatives": 30
+      }
+    },
+    "confidence_intervals": {
+      "accuracy": [
+        0.9608,
+        0.9806
+      ],
+      "precision": [
+        0.9936,
+        1.0
+      ],
+      "recall": [
+        0.9324,
+        0.9662
+      ]
+    }
+  },
+  "candidate_cv_benchmarks": {
+    "LogisticRegression": {
+      "mean_accuracy": 0.9995,
+      "std_accuracy": 0.0009,
+      "mean_precision": 1.0,
+      "std_precision": 0.0,
+      "mean_recall": 0.9967,
+      "std_recall": 0.0067,
+      "mean_f1": 0.9983,
+      "std_f1": 0.0035,
+      "mean_roc_auc": 0.999,
+      "std_roc_auc": 0.002
+    },
+    "HistGradientBoosting": {
+      "mean_accuracy": 0.9986,
+      "std_accuracy": 0.0018,
+      "mean_precision": 0.9992,
+      "std_precision": 0.0016,
+      "mean_recall": 0.9955,
+      "std_recall": 0.0069,
+      "mean_f1": 0.9973,
+      "std_f1": 0.0035,
+      "mean_roc_auc": 0.9977,
+      "std_roc_auc": 0.0046
+    },
+    "RandomForest": {
+      "mean_accuracy": 0.997,
+      "std_accuracy": 0.002,
+      "mean_precision": 0.9977,
+      "std_precision": 0.0031,
+      "mean_recall": 0.994,
+      "std_recall": 0.0051,
+      "mean_f1": 0.9958,
+      "std_f1": 0.0029,
+      "mean_roc_auc": 0.9976,
+      "std_roc_auc": 0.0047
+    }
+  },
+  "behavioral_model": {
+    "model_type": "LogisticRegression_BehavioralBaseline",
+    "version": "1.0.0",
+    "trained_at": "2026-10-29T08:55:30.669082",
+    "n_samples": 111,
+    "n_features": 12,
+    "feature_names": [
+      "Revisions",
+      "Visit",
+      "KT",
+      "CD",
+      "Score-HOTS",
+      "Score-LOTS",
+      "Time-HOTS",
+      "Time-LOTS",
+      "Score-HighDiff",
+      "Score-LowDiff",
+      "Time-HighDiff",
+      "Time-LowDiff"
+    ],
+    "limitations_note": "Sample size is limited to 111 student sessions across Dataset1 and Dataset2. This baseline demonstrates behavioral feasibility, but production deployment must rely on genuine, large-scale Integraminds telemetry and the rule-based policy evaluator.",
+    "test_metrics": {
+      "accuracy": 0.8696,
+      "precision": 0.8333,
+      "recall": 0.7143,
+      "f1_score": 0.7692,
+      "roc_auc": 0.8482,
+      "confusion_matrix": [
+        [
+          15,
+          1
+        ],
+        [
+          2,
+          5
+        ]
+      ]
+    }
+  },
+  "review_queue_reduction": {
+    "target_recall": 0.95,
+    "optimal_threshold": 0.9728,
+    "achieved_recall": 0.8179,
+    "achieved_precision": 1.0,
+    "review_queue_percentage": 47.19,
+    "human_review_workload_reduction_pct": 52.81,
+    "sessions_flagged_for_review": 512,
+    "total_sessions": 1085,
+    "leakage_free_holdout": true
+  },
+  "fairness_audit": {
+    "poor_lighting_subgroup": {
+      "group_name": "Poor Lighting (Face Conf < 75%)",
+      "subgroup_metrics": {
+        "samples": 195,
+        "negative_samples": 18,
+        "positive_samples": 177,
+        "precision": 1.0,
+        "recall": 0.9605,
+        "fpr": 0.0,
+        "false_positives": 0,
+        "true_positives": 170,
+        "false_negatives": 7,
+        "true_negatives": 18
+      },
+      "reference_metrics": {
+        "samples": 890,
+        "negative_samples": 441,
+        "positive_samples": 449,
+        "precision": 1.0,
+        "recall": 0.7617,
+        "fpr": 0.0,
+        "false_positives": 0,
+        "true_positives": 342,
+        "false_negatives": 107,
+        "true_negatives": 441
+      },
+      "fpr_disparity_ratio": 0.0,
+      "is_fpr_disproportionate": false,
+      "auditable": true,
+      "audit_warning": null
+    },
+    "multiple_faces_subgroup": {
+      "group_name": "Multiple Faces Detected",
+      "subgroup_metrics": {
+        "samples": 74,
+        "negative_samples": 0,
+        "positive_samples": 74,
+        "precision": 1.0,
+        "recall": 0.8378,
+        "fpr": "UNDEFINED_ZERO_NEGATIVES",
+        "false_positives": 0,
+        "true_positives": 62,
+        "false_negatives": 12,
+        "true_negatives": 0
+      },
+      "reference_metrics": {
+        "samples": 1011,
+        "negative_samples": 459,
+        "positive_samples": 552,
+        "precision": 1.0,
+        "recall": 0.8152,
+        "fpr": 0.0,
+        "false_positives": 0,
+        "true_positives": 450,
+        "false_negatives": 102,
+        "true_negatives": 459
+      },
+      "fpr_disparity_ratio": "CANNOT_COMPUTE",
+      "is_fpr_disproportionate": false,
+      "auditable": false,
+      "audit_warning": "Subgroup contains zero or insufficient negative (normal) cases to compute False Positive Rate. Empirical fairness cannot be claimed from this dataset."
+    }
+  },
+  "low_bandwidth_audit": {
+    "stride": 5,
+    "full_frames_evaluated": 1085,
+    "downsampled_frames_evaluated": 217,
+    "full_suspicious_rate": 0.4719,
+    "downsampled_suspicious_rate": 0.4654,
+    "rate_discrepancy": 0.0065,
+    "low_bandwidth_stability": "STABLE"
+  },
+  "cpu_performance": {
+    "frame_latency_ms": 0.015,
+    "frames_per_sec": 65197.3,
+    "session_scoring_latency_ms": 4.32,
+    "model_size_mb": 0.0063
+  }
+}

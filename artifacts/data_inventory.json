@@ -1,0 +1,1532 @@
+{
+  "metadata": {
+    "project_root": "C:\\Users\\saura\\OneDrive\\Pictures\\FairProctor-AI\\FairProctor-AI",
+    "inspected_extensions": [
+      ".csv",
+      ".tsv",
+      ".json",
+      ".jsonl",
+      ".xlsx",
+      ".parquet"
+    ]
+  },
+  "files": [
+    {
+      "file_path": "Dataset-main/Dataset1.csv",
+      "rows": 60,
+      "columns": 15,
+      "column_names": [
+        "Username/ID",
+        "Revisions",
+        "Visit",
+        "Flag",
+        "KT",
+        "CD",
+        "Score-HOTS",
+        "Score-LOTS",
+        "Time-HOTS",
+        "Time-LOTS",
+        "Score-HighDiff",
+        "Score-LowDiff",
+        "Time-HighDiff",
+        "Time-LowDiff",
+        "Cheater"
+      ],
+      "duplicate_rows": 0,
+      "candidate_targets": [
+        "Cheater"
+      ],
+      "candidate_ids": [
+        "Username/ID"
+      ],
+      "candidate_timestamps": [
+        "Time-HOTS",
+        "Time-LOTS",
+        "Time-HighDiff",
+        "Time-LowDiff"
+      ],
+      "constant_columns": [],
+      "target_distributions": {
+        "Cheater": {
+          "0": 39,
+          "1": 21
+        }
+      },
+      "columns_detail": {
+        "Username/ID": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 60,
+          "top_values": {
+            "Student1": 1,
+            "Student2": 1,
+            "Student3": 1,
+            "Student4": 1,
+            "Student5": 1,
+            "Student6": 1,
+            "Student7": 1,
+            "Student8": 1,
+            "Student9": 1,
+            "Student10": 1
+          }
+        },
+        "Revisions": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 7,
+          "distribution": {
+            "min": 0.0,
+            "max": 6.0,
+            "mean": 1.4,
+            "std": 1.659078772355718,
+            "median": 1.0,
+            "q25": 0.0,
+            "q75": 2.0
+          }
+        },
+        "Visit": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 46,
+          "distribution": {
+            "min": 1.0,
+            "max": 15.73333333,
+            "mean": 4.638888888949999,
+            "std": 3.124733761403028,
+            "median": 3.9000000000000004,
+            "q25": 2.566666667,
+            "q75": 6.41666666675
+          }
+        },
+        "Flag": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5,
+          "distribution": {
+            "min": 0.0,
+            "max": 4.0,
+            "mean": 0.6333333333333333,
+            "std": 0.9382035966145968,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        },
+        "KT": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 50,
+          "distribution": {
+            "min": -0.303696858,
+            "max": 0.689352878,
+            "mean": 0.34355513826666667,
+            "std": 0.20851636693065054,
+            "median": 0.3710770215,
+            "q25": 0.22807864975,
+            "q75": 0.48145193575
+          }
+        },
+        "CD": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 60,
+          "distribution": {
+            "min": 7.52e-05,
+            "max": 0.1171067,
+            "mean": 0.016326804116666666,
+            "std": 0.019664965383540615,
+            "median": 0.010695182000000001,
+            "q25": 0.003284997,
+            "q75": 0.022294235
+          }
+        },
+        "Score-HOTS": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 6,
+          "distribution": {
+            "min": 0.0,
+            "max": 5.0,
+            "mean": 2.433333333333333,
+            "std": 1.1551897146513026,
+            "median": 2.0,
+            "q25": 2.0,
+            "q75": 3.0
+          }
+        },
+        "Score-LOTS": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 9,
+          "distribution": {
+            "min": 1.0,
+            "max": 9.0,
+            "mean": 5.0,
+            "std": 2.0502170203440597,
+            "median": 5.0,
+            "q25": 3.75,
+            "q75": 7.0
+          }
+        },
+        "Time-HOTS": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 55,
+          "distribution": {
+            "min": 116.0,
+            "max": 849.0,
+            "mean": 398.6,
+            "std": 141.2224114350319,
+            "median": 389.0,
+            "q25": 297.75,
+            "q75": 494.5
+          }
+        },
+        "Time-LOTS": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 60,
+          "distribution": {
+            "min": 45.0,
+            "max": 1080.0,
+            "mean": 568.2333333333333,
+            "std": 204.40764908791874,
+            "median": 551.0,
+            "q25": 449.25,
+            "q75": 688.75
+          }
+        },
+        "Score-HighDiff": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 6,
+          "distribution": {
+            "min": 1.0,
+            "max": 6.0,
+            "mean": 3.283333333333333,
+            "std": 1.4854282800395455,
+            "median": 3.0,
+            "q25": 2.0,
+            "q75": 4.0
+          }
+        },
+        "Score-LowDiff": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 6,
+          "distribution": {
+            "min": 1.0,
+            "max": 6.0,
+            "mean": 4.15,
+            "std": 1.2326765696741904,
+            "median": 4.0,
+            "q25": 3.0,
+            "q75": 5.0
+          }
+        },
+        "Time-HighDiff": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 60,
+          "distribution": {
+            "min": 121.0,
+            "max": 1097.0,
+            "mean": 612.5166666666667,
+            "std": 200.4584991638061,
+            "median": 611.5,
+            "q25": 473.5,
+            "q75": 727.25
+          }
+        },
+        "Time-LowDiff": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 55,
+          "distribution": {
+            "min": 40.0,
+            "max": 723.0,
+            "mean": 354.31666666666666,
+            "std": 142.23369307701913,
+            "median": 349.5,
+            "q25": 254.75,
+            "q75": 430.5
+          }
+        },
+        "Cheater": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.0,
+            "mean": 0.35,
+            "std": 0.4809947319913076,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        }
+      }
+    },
+    {
+      "file_path": "Dataset-main/Dataset2.csv",
+      "rows": 51,
+      "columns": 15,
+      "column_names": [
+        "Username/ID",
+        "Revisions",
+        "Visit",
+        "Flag",
+        "KT",
+        "CD",
+        "Score-HOTS",
+        "Score-LOTS",
+        "Time-HOTS",
+        "Time-LOTS",
+        "Score-HighDiff",
+        "Score-LowDiff",
+        "Time-HighDiff",
+        "Time-LowDiff",
+        "Cheater"
+      ],
+      "duplicate_rows": 0,
+      "candidate_targets": [
+        "Cheater"
+      ],
+      "candidate_ids": [
+        "Username/ID"
+      ],
+      "candidate_timestamps": [
+        "Time-HOTS",
+        "Time-LOTS",
+        "Time-HighDiff",
+        "Time-LowDiff"
+      ],
+      "constant_columns": [],
+      "target_distributions": {
+        "Cheater": {
+          "0": 37,
+          "1": 14
+        }
+      },
+      "columns_detail": {
+        "Username/ID": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 51,
+          "top_values": {
+            "Student1": 1,
+            "Student2": 1,
+            "Student3": 1,
+            "Student4": 1,
+            "Student5": 1,
+            "Student6": 1,
+            "Student7": 1,
+            "Student8": 1,
+            "Student9": 1,
+            "Student10": 1
+          }
+        },
+        "Revisions": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5,
+          "distribution": {
+            "min": 0.0,
+            "max": 4.0,
+            "mean": 0.5490196078431373,
+            "std": 0.9014150096419759,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        },
+        "Visit": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 37,
+          "distribution": {
+            "min": 1.0,
+            "max": 12.06666667,
+            "mean": 3.5777777778627455,
+            "std": 2.6187245978693383,
+            "median": 2.866666667,
+            "q25": 1.866666667,
+            "q75": 4.3
+          }
+        },
+        "Flag": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5,
+          "distribution": {
+            "min": 0.0,
+            "max": 4.0,
+            "mean": 0.6862745098039216,
+            "std": 0.9897514047159796,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        },
+        "KT": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 41,
+          "distribution": {
+            "min": -0.212562867,
+            "max": 0.724646137,
+            "mean": 0.3340290995490196,
+            "std": 0.19689529175503817,
+            "median": 0.317322362,
+            "q25": 0.241557088,
+            "q75": 0.47569784000000004
+          }
+        },
+        "CD": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 51,
+          "distribution": {
+            "min": 6.73e-07,
+            "max": 0.11565991,
+            "mean": 0.021877088745098038,
+            "std": 0.031142701709643353,
+            "median": 0.008029463,
+            "q25": 0.000740734,
+            "q75": 0.0258272735
+          }
+        },
+        "Score-HOTS": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5,
+          "distribution": {
+            "min": 1.0,
+            "max": 5.0,
+            "mean": 2.764705882352941,
+            "std": 1.1061326375099443,
+            "median": 3.0,
+            "q25": 2.0,
+            "q75": 4.0
+          }
+        },
+        "Score-LOTS": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 7,
+          "distribution": {
+            "min": 4.0,
+            "max": 10.0,
+            "mean": 6.627450980392157,
+            "std": 1.7315979246202104,
+            "median": 7.0,
+            "q25": 5.0,
+            "q75": 8.0
+          }
+        },
+        "Time-HOTS": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 46,
+          "distribution": {
+            "min": 155.0,
+            "max": 777.0,
+            "mean": 385.54901960784315,
+            "std": 132.38735796525137,
+            "median": 349.0,
+            "q25": 309.0,
+            "q75": 451.5
+          }
+        },
+        "Time-LOTS": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 47,
+          "distribution": {
+            "min": 190.0,
+            "max": 1011.0,
+            "mean": 533.1960784313726,
+            "std": 176.35679965431933,
+            "median": 481.0,
+            "q25": 417.0,
+            "q75": 649.5
+          }
+        },
+        "Score-HighDiff": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5,
+          "distribution": {
+            "min": 0.0,
+            "max": 4.0,
+            "mean": 1.1764705882352942,
+            "std": 1.1437811390810948,
+            "median": 1.0,
+            "q25": 0.0,
+            "q75": 2.0
+          }
+        },
+        "Score-LowDiff": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 8,
+          "distribution": {
+            "min": 4.0,
+            "max": 11.0,
+            "mean": 8.215686274509803,
+            "std": 1.5403080924308108,
+            "median": 8.0,
+            "q25": 7.0,
+            "q75": 9.0
+          }
+        },
+        "Time-HighDiff": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 44,
+          "distribution": {
+            "min": 82.0,
+            "max": 546.0,
+            "mean": 260.54901960784315,
+            "std": 103.89673983826252,
+            "median": 248.0,
+            "q25": 183.0,
+            "q75": 311.5
+          }
+        },
+        "Time-LowDiff": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 47,
+          "distribution": {
+            "min": 233.0,
+            "max": 1167.0,
+            "mean": 658.1960784313726,
+            "std": 193.7616081279099,
+            "median": 624.0,
+            "q25": 544.5,
+            "q75": 711.0
+          }
+        },
+        "Cheater": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.0,
+            "mean": 0.27450980392156865,
+            "std": 0.45070750482098787,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        }
+      }
+    },
+    {
+      "file_path": "Dataset-main/Raw_Dataset1.csv",
+      "rows": 900,
+      "columns": 9,
+      "column_names": [
+        "Username/ID",
+        "Question",
+        "BT level",
+        "Question-Visit-Timestamp",
+        "Response-Submit-Timestamp",
+        "Response",
+        "Time",
+        "Score",
+        "Tab Switch"
+      ],
+      "duplicate_rows": 0,
+      "candidate_targets": [],
+      "candidate_ids": [
+        "Username/ID"
+      ],
+      "candidate_timestamps": [
+        "Question-Visit-Timestamp",
+        "Response-Submit-Timestamp",
+        "Time"
+      ],
+      "constant_columns": [],
+      "target_distributions": {},
+      "columns_detail": {
+        "Username/ID": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 60,
+          "top_values": {
+            "Student1": 15,
+            "Student2": 15,
+            "Student3": 15,
+            "Student4": 15,
+            "Student5": 15,
+            "Student6": 15,
+            "Student7": 15,
+            "Student8": 15,
+            "Student9": 15,
+            "Student10": 15
+          }
+        },
+        "Question": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 15,
+          "distribution": {
+            "min": 1.0,
+            "max": 15.0,
+            "mean": 8.0,
+            "std": 4.3228960753537935,
+            "median": 8.0,
+            "q25": 4.0,
+            "q75": 12.0
+          }
+        },
+        "BT level": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "top_values": {
+            "LOTS": 600,
+            "HOTS": 300
+          }
+        },
+        "Question-Visit-Timestamp": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 892,
+          "top_values": {
+            "[\"19-04-2022 06:34:32\"]": 2,
+            "[\"19-04-2022 06:31:02\"]": 2,
+            "[\"19-04-2022 06:33:26\"]": 2,
+            "[\"19-04-2022 06:31:37\"]": 2,
+            "[\"19-04-2022 06:34:04\"]": 2,
+            "[\"19-04-2022 06:34:57\"]": 2,
+            "[\"19-04-2022 06:30:22\"]": 2,
+            "[\"19-04-2022 06:34:27\"]": 2,
+            "[\"19-04-2022 05:24:46\", \"19-04-2022 05:27:37\", \"19-04-2022 05:27:53\", \"19-04-2022 05:38:42\", \"19-04-2022 05:40:26\", \"19-04-2022 05:40:39\", \"19-04-2022 05:41:17\", \"19-04-2022 05:42:53\"]": 1,
+            "[\"19-04-2022 05:25:16\", \"19-04-2022 05:27:37\", \"19-04-2022 05:29:39\", \"19-04-2022 05:29:41\", \"19-04-2022 05:30:02\", \"19-04-2022 05:30:44\", \"19-04-2022 05:32:22\", \"19-04-2022 05:38:44\", \"19-04-2022 05:39:13\", \"19-04-2022 05:39:26\", \"19-04-2022 05:41:34\", \"19-04-2022 05:42:57\"]": 1
+          }
+        },
+        "Response-Submit-Timestamp": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 880,
+          "top_values": {
+            "[]": 13,
+            "[[\"option_1\", \"19-04-2022 05:39:54\"]]": 3,
+            "[[\"option_1\", \"19-04-2022 05:25:59\"], [\"option_1\", \"19-04-2022 05:37:24\"]]": 2,
+            "[[\"option_1\", \"19-04-2022 05:33:13\"]]": 2,
+            "[[\"option_3\", \"19-04-2022 06:32:24\"]]": 2,
+            "[[\"option_2\", \"19-04-2022 06:32:39\"]]": 2,
+            "[[\"option_2\", \"19-04-2022 06:39:07\"]]": 2,
+            "[[\"option_1\", \"19-04-2022 06:42:13\"]]": 2,
+            "[[\"option_2\", \"19-04-2022 05:29:17\"], [\"option_2\", \"19-04-2022 05:42:56\"]]": 1,
+            "[[\"option_1\", \"19-04-2022 05:30:04\"], [\"option_1\", \"19-04-2022 05:30:51\"], [\"option_1\", \"19-04-2022 05:42:59\"]]": 1
+          }
+        },
+        "Response": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5,
+          "top_values": {
+            "option_1": 309,
+            "option_2": 299,
+            "option_3": 230,
+            "option_4": 49,
+            "Unanswered": 13
+          }
+        },
+        "Time": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 183,
+          "distribution": {
+            "min": 0.0,
+            "max": 506.0,
+            "mean": 64.45555555555555,
+            "std": 51.4129524742154,
+            "median": 52.0,
+            "q25": 29.0,
+            "q75": 86.0
+          }
+        },
+        "Score": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.0,
+            "mean": 0.4955555555555556,
+            "std": 0.5002582450138756,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        },
+        "Tab Switch": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 9,
+          "distribution": {
+            "min": 0.0,
+            "max": 8.0,
+            "mean": 0.28555555555555556,
+            "std": 0.8758356710053341,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.0
+          }
+        }
+      }
+    },
+    {
+      "file_path": "Dataset-main/Raw_Dataset2.csv",
+      "rows": 765,
+      "columns": 9,
+      "column_names": [
+        "Username/ID",
+        "Question",
+        "BT level",
+        "Question-Visit-Timestamp",
+        "Response-Submit-Timestamp",
+        "Response",
+        "Time",
+        "Score",
+        "Tab Switch"
+      ],
+      "duplicate_rows": 0,
+      "candidate_targets": [],
+      "candidate_ids": [
+        "Username/ID"
+      ],
+      "candidate_timestamps": [
+        "Question-Visit-Timestamp",
+        "Response-Submit-Timestamp",
+        "Time"
+      ],
+      "constant_columns": [],
+      "target_distributions": {},
+      "columns_detail": {
+        "Username/ID": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 51,
+          "top_values": {
+            "Student1": 15,
+            "Student2": 15,
+            "Student3": 15,
+            "Student4": 15,
+            "Student5": 15,
+            "Student6": 15,
+            "Student7": 15,
+            "Student8": 15,
+            "Student9": 15,
+            "Student10": 15
+          }
+        },
+        "Question": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 15,
+          "distribution": {
+            "min": 1.0,
+            "max": 15.0,
+            "mean": 8.0,
+            "std": 4.3233204225964785,
+            "median": 8.0,
+            "q25": 4.0,
+            "q75": 12.0
+          }
+        },
+        "BT level": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "top_values": {
+            "LOTS": 510,
+            "HOTS": 255
+          }
+        },
+        "Question-Visit-Timestamp": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 753,
+          "top_values": {
+            "[\"24-03-2022 05:33:52\"]": 2,
+            "[\"24-03-2022 05:36:40\"]": 2,
+            "[\"24-03-2022 05:29:58\"]": 2,
+            "[\"24-03-2022 05:32:04\"]": 2,
+            "[\"24-03-2022 05:33:03\"]": 2,
+            "[\"24-03-2022 05:37:35\"]": 2,
+            "[\"24-03-2022 05:42:05\"]": 2,
+            "[\"24-03-2022 06:15:47\"]": 2,
+            "[\"24-03-2022 06:24:56\"]": 2,
+            "[\"24-03-2022 06:18:43\"]": 2
+          }
+        },
+        "Response-Submit-Timestamp": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 747,
+          "top_values": {
+            "[]": 8,
+            "[[\"option_3\", \"24-03-2022 05:33:52\"]]": 2,
+            "[[\"option_3\", \"24-03-2022 05:39:03\"]]": 2,
+            "[[\"option_1\", \"24-03-2022 05:37:35\"]]": 2,
+            "[[\"option_4\", \"24-03-2022 05:38:59\"]]": 2,
+            "[[\"option_1\", \"24-03-2022 05:37:33\"]]": 2,
+            "[[\"option_1\", \"24-03-2022 05:35:32\"]]": 2,
+            "[[\"option_3\", \"24-03-2022 05:39:07\"]]": 2,
+            "[[\"option_3\", \"24-03-2022 06:18:47\"]]": 2,
+            "[[\"option_3\", \"24-03-2022 06:18:28\"]]": 2
+          }
+        },
+        "Response": {
+          "dtype": "str",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5,
+          "top_values": {
+            "option_3": 282,
+            "option_1": 195,
+            "option_4": 154,
+            "option_2": 126,
+            "Unanswered": 8
+          }
+        },
+        "Time": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 172,
+          "distribution": {
+            "min": 0.0,
+            "max": 424.0,
+            "mean": 61.24967320261438,
+            "std": 49.7727205138899,
+            "median": 47.0,
+            "q25": 27.0,
+            "q75": 81.0
+          }
+        },
+        "Score": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.0,
+            "mean": 0.6261437908496732,
+            "std": 0.48414268723259046,
+            "median": 1.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        },
+        "Tab Switch": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 12,
+          "distribution": {
+            "min": 0.0,
+            "max": 12.0,
+            "mean": 0.4300653594771242,
+            "std": 1.287021652476151,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.0
+          }
+        }
+      }
+    },
+    {
+      "file_path": "Students suspicious behaviors detection dataset fo/Students suspicious behaviors detection dataset_V1.csv",
+      "rows": 5500,
+      "columns": 38,
+      "column_names": [
+        "face_present",
+        "no_of_face",
+        "face_x",
+        "face_y",
+        "face_w",
+        "face_h",
+        "left_eye_x",
+        "left_eye_y",
+        "right_eye_x",
+        "right_eye_y",
+        "nose_tip_x",
+        "nose_tip_y",
+        "mouth_x",
+        "mouth_y",
+        "face_conf",
+        "hand_count",
+        "left_hand_x",
+        "left_hand_y",
+        "right_hand_x",
+        "right_hand_y",
+        "hand_obj_interaction",
+        "head_pose",
+        "head_pitch",
+        "head_yaw",
+        "head_roll",
+        "phone_present",
+        "phone_loc_x",
+        "phone_loc_y",
+        "phone_conf",
+        "gaze_on_script",
+        "gaze_direction",
+        "gazePoint_x",
+        "gazePoint_y",
+        "pupil_left_x",
+        "pupil_left_y",
+        "pupil_right_x",
+        "pupil_right_y",
+        "label"
+      ],
+      "duplicate_rows": 76,
+      "candidate_targets": [
+        "label"
+      ],
+      "candidate_ids": [],
+      "candidate_timestamps": [],
+      "constant_columns": [],
+      "target_distributions": {
+        "label": {
+          "0": 2881,
+          "1": 2619
+        }
+      },
+      "columns_detail": {
+        "face_present": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.0,
+            "mean": 0.968,
+            "std": 0.17601600218214883,
+            "median": 1.0,
+            "q25": 1.0,
+            "q75": 1.0
+          }
+        },
+        "no_of_face": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 3,
+          "distribution": {
+            "min": 0.0,
+            "max": 2.0,
+            "mean": 0.9887272727272727,
+            "std": 0.22936818384139487,
+            "median": 1.0,
+            "q25": 1.0,
+            "q75": 1.0
+          }
+        },
+        "face_x": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5313,
+          "distribution": {
+            "min": -19.7894299,
+            "max": 521.9259262,
+            "mean": 248.68393778091217,
+            "std": 65.43891694946909,
+            "median": 256.4208889,
+            "q25": 231.798105275,
+            "q75": 280.93518259999996
+          }
+        },
+        "face_y": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5318,
+          "distribution": {
+            "min": -40.5998683,
+            "max": 434.4304943,
+            "mean": 250.30093608353906,
+            "std": 73.73001459705259,
+            "median": 264.30118915,
+            "q25": 222.15072155,
+            "q75": 291.23559
+          }
+        },
+        "face_w": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5313,
+          "distribution": {
+            "min": 0.0,
+            "max": 486.3272095,
+            "mean": 152.5595872811491,
+            "std": 44.613168353836805,
+            "median": 149.57037925,
+            "q25": 134.577856075,
+            "q75": 172.203245175
+          }
+        },
+        "face_h": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5311,
+          "distribution": {
+            "min": 0.0,
+            "max": 486.349926,
+            "mean": 152.5568472892,
+            "std": 44.60955336727566,
+            "median": 149.5704889,
+            "q25": 134.577827475,
+            "q75": 172.197042675
+          }
+        },
+        "left_eye_x": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 3366,
+          "distribution": {
+            "min": 0.0,
+            "max": 563.9522934,
+            "mean": 280.4620354403946,
+            "std": 68.24940819939937,
+            "median": 289.7652435,
+            "q25": 267.9269218,
+            "q75": 305.7486916
+          }
+        },
+        "left_eye_y": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 3366,
+          "distribution": {
+            "min": -2.350866795,
+            "max": 443.9059353,
+            "mean": 288.3915333936891,
+            "std": 73.82897805257335,
+            "median": 301.8799639,
+            "q25": 264.16445015,
+            "q75": 323.898897175
+          }
+        },
+        "right_eye_x": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 3364,
+          "distribution": {
+            "min": 0.0,
+            "max": 626.0419083,
+            "mean": 336.2551362033091,
+            "std": 72.7820875581187,
+            "median": 342.7832794,
+            "q25": 325.9827805,
+            "q75": 361.32712365
+          }
+        },
+        "right_eye_y": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 3366,
+          "distribution": {
+            "min": 0.0,
+            "max": 454.5841885,
+            "mean": 288.99278600498,
+            "std": 72.98380082860467,
+            "median": 297.77624130000004,
+            "q25": 263.789420125,
+            "q75": 322.476418
+          }
+        },
+        "nose_tip_x": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 3363,
+          "distribution": {
+            "min": 0.0,
+            "max": 580.5913925,
+            "mean": 301.3490207721545,
+            "std": 69.64444043989438,
+            "median": 302.14967725,
+            "q25": 283.4633064,
+            "q75": 324.1319656
+          }
+        },
+        "nose_tip_y": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 3363,
+          "distribution": {
+            "min": 0.0,
+            "max": 503.1554604,
+            "mean": 319.24952297288723,
+            "std": 76.67059355311567,
+            "median": 329.910779,
+            "q25": 299.2393041,
+            "q75": 354.3816662
+          }
+        },
+        "mouth_x": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 3366,
+          "distribution": {
+            "min": 0.0,
+            "max": 574.557724,
+            "mean": 303.41347723945455,
+            "std": 68.247646807241,
+            "median": 305.82420349999995,
+            "q25": 288.2672119,
+            "q75": 324.7154236
+          }
+        },
+        "mouth_y": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 3364,
+          "distribution": {
+            "min": 0.0,
+            "max": 521.3163757,
+            "mean": 350.64171318990543,
+            "std": 77.90877858456537,
+            "median": 361.7240953,
+            "q25": 329.5298767,
+            "q75": 387.128863375
+          }
+        },
+        "face_conf": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 5312,
+          "distribution": {
+            "min": 0.0,
+            "max": 98.50724339,
+            "mean": 85.24906476299455,
+            "std": 17.718084830101066,
+            "median": 90.365743635,
+            "q25": 83.97226483,
+            "q75": 94.1017925775
+          }
+        },
+        "hand_count": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 4,
+          "distribution": {
+            "min": 0.0,
+            "max": 3.0,
+            "mean": 0.5681818181818182,
+            "std": 0.7952202889182486,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        },
+        "left_hand_x": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 396,
+          "distribution": {
+            "min": -0.00876084,
+            "max": 0.494221836,
+            "mean": 0.11172828807418182,
+            "std": 0.16874544462812283,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.2347588055
+          }
+        },
+        "left_hand_y": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 393,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.097593904,
+            "mean": 0.3066301391236364,
+            "std": 0.43189508611923205,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.87280792
+          }
+        },
+        "right_hand_x": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 1179,
+          "distribution": {
+            "min": 0.0,
+            "max": 0.956067681,
+            "mean": 0.09090235965490909,
+            "std": 0.1826139599407726,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.0
+          }
+        },
+        "right_hand_y": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 1178,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.099245548,
+            "mean": 0.2025962294338182,
+            "std": 0.3858835414875171,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.0
+          }
+        },
+        "hand_obj_interaction": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.0,
+            "mean": 0.15236363636363637,
+            "std": 0.3594056824490952,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.0
+          }
+        },
+        "head_pose": {
+          "dtype": "str",
+          "missing_count": 569,
+          "missing_pct": 10.345,
+          "n_unique": 4,
+          "top_values": {
+            "forward": 3936,
+            "nan": 569,
+            "right": 401,
+            "down": 367,
+            "left": 227
+          }
+        },
+        "head_pitch": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 4668,
+          "distribution": {
+            "min": -0.056530674,
+            "max": 0.309960226,
+            "mean": 0.0035882244203636364,
+            "std": 0.019810148281610082,
+            "median": 0.0030180004999999996,
+            "q25": -0.005438202,
+            "q75": 0.01478877875
+          }
+        },
+        "head_yaw": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 4668,
+          "distribution": {
+            "min": -0.098344402,
+            "max": 0.740479999,
+            "mean": 0.005388811214,
+            "std": 0.024637053837124535,
+            "median": 0.004179319,
+            "q25": -0.0083307235,
+            "q75": 0.021590038
+          }
+        },
+        "head_roll": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2854,
+          "distribution": {
+            "min": -0.006120279,
+            "max": 0.001976904,
+            "mean": -6.606676454545453e-05,
+            "std": 0.00047519602228138805,
+            "median": 0.0,
+            "q25": -0.0002366175,
+            "q75": 0.000211934
+          }
+        },
+        "phone_present": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.0,
+            "mean": 0.14072727272727273,
+            "std": 0.3477716168058224,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.0
+          }
+        },
+        "phone_loc_x": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 279,
+          "distribution": {
+            "min": 0.0,
+            "max": 500.0,
+            "mean": 27.308545454545456,
+            "std": 76.24123928799571,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.0
+          }
+        },
+        "phone_loc_y": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 262,
+          "distribution": {
+            "min": 0.0,
+            "max": 447.0,
+            "mean": 44.65018181818182,
+            "std": 115.74585172382831,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.0
+          }
+        },
+        "phone_conf": {
+          "dtype": "float64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 774,
+          "distribution": {
+            "min": 0.0,
+            "max": 0.933759332,
+            "mean": 0.11046946326054545,
+            "std": 0.275080209501902,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 0.0
+          }
+        },
+        "gaze_on_script": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.0,
+            "mean": 0.653090909090909,
+            "std": 0.4760298040554344,
+            "median": 1.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        },
+        "gaze_direction": {
+          "dtype": "str",
+          "missing_count": 1051,
+          "missing_pct": 19.109,
+          "n_unique": 5,
+          "top_values": {
+            "center": 3591,
+            "nan": 1051,
+            "bottom_left": 362,
+            "bottom_right": 278,
+            "top_right": 122,
+            "top_left": 96
+          }
+        },
+        "gazePoint_x": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 471,
+          "distribution": {
+            "min": 0.0,
+            "max": 639.0,
+            "mean": 252.24,
+            "std": 145.7338630136386,
+            "median": 292.0,
+            "q25": 171.0,
+            "q75": 370.0
+          }
+        },
+        "gazePoint_y": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 344,
+          "distribution": {
+            "min": 0.0,
+            "max": 480.0,
+            "mean": 227.70127272727274,
+            "std": 123.7325546463164,
+            "median": 260.0,
+            "q25": 199.0,
+            "q75": 313.0
+          }
+        },
+        "pupil_left_x": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 281,
+          "distribution": {
+            "min": 0.0,
+            "max": 501.0,
+            "mean": 232.4790909090909,
+            "std": 118.72908289698871,
+            "median": 280.0,
+            "q25": 230.0,
+            "q75": 298.0
+          }
+        },
+        "pupil_left_y": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 244,
+          "distribution": {
+            "min": 0.0,
+            "max": 430.0,
+            "mean": 231.09163636363635,
+            "std": 123.06433694047954,
+            "median": 274.0,
+            "q25": 209.0,
+            "q75": 314.0
+          }
+        },
+        "pupil_right_x": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 297,
+          "distribution": {
+            "min": 0.0,
+            "max": 579.0,
+            "mean": 281.1123636363636,
+            "std": 141.55321124187998,
+            "median": 340.0,
+            "q25": 294.0,
+            "q75": 359.0
+          }
+        },
+        "pupil_right_y": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 254,
+          "distribution": {
+            "min": 0.0,
+            "max": 430.0,
+            "mean": 232.0458181818182,
+            "std": 123.19468656237896,
+            "median": 275.5,
+            "q25": 205.0,
+            "q75": 315.0
+          }
+        },
+        "label": {
+          "dtype": "int64",
+          "missing_count": 0,
+          "missing_pct": 0.0,
+          "n_unique": 2,
+          "distribution": {
+            "min": 0.0,
+            "max": 1.0,
+            "mean": 0.4761818181818182,
+            "std": 0.4994777811485038,
+            "median": 0.0,
+            "q25": 0.0,
+            "q75": 1.0
+          }
+        }
+      }
+    }
+  ],
+  "documentation_findings": [
+    {
+      "file": "Students suspicious behaviors detection dataset fo/Table_1.docx",
+      "char_count": 2884,
+      "preview": "Table 1 .   Dataset feature glossary Feature Name Data Type Description Example Values/Range Units (if applicable) face_present Integer (Binary) Indicator: 1 if a face is detected, 0 otherwise. 0, 1 N/A no_of_face Integer Number of faces detected in the frame. Typically 1 when  face_present  is 1. 0, 1 Count face_x ,  face_y Float X, Y coordinates of the top-left corner of the detected face bounding box. e.g., 260.7 - 318.1 Pixels face_w ,  face_h Float Width and Height of the detected face bounding box. e.g., 102.2 - 205.2 Pixels left_eye_x ,  left_eye_y Float X, Y coordinates of the left eye \u2019 s center. e.g., 281.2 - 370.5 Pixels right_eye_x ,  right_eye_y Float X, Y coordinates of the right eye \u2019 s center. e.g., 332.4 - 437.0 Pixels nose_tip_x ,  nose_tip_y Float X, Y coordinates of the nose tip. e.g., 272.6 - 415.9 Pixels mouth_x ,  mouth_y Float X, Y coordinates of the mouth center. e.g., 272.7 - 407.5 Pixels face_conf Float Confidence score (0-100) of the face detection. Higher is better. e.g., 50.2 - 97.8 Percentage hand_count Integer Number of hands detected in the frame. 0, 1, 2 Count left_hand_x ,  left_hand_y Float X, Y coordinates of the left hand. Zero if not detected."
+    },
+    {
+      "file": "Students suspicious behaviors detection dataset fo/Table_2.docx",
+      "char_count": 756,
+      "preview": "Table 2.  Overview of tools and extracted features in student behavior monitoring modules Module Tool/Library Key Features Extracted Face Detection MediaPipe Face Detection ,  OpenCV face_present ,  face_conf , bounding box, eye/nose/mouth landmarks Head Pose Estimation MediaPipe Face Mesh ,   OpenCV  solvePnP () ,   NumPy head_pose ,  h ead_pitch ,  head_yaw ,  head_roll Eye Gaze Tracking MediaPipe Face Mesh, OpenCV  solvePnP () ,   projectPoints () gaze_on_script ,  gaze_direction ,  gaze_point_x ,  gaze_point_y , pupil coordinates Hand Tracking MediaPipe Hands ,  OpenCV hand-object interaction ,  hand_count , wrist landmarks Mobile  Phone Detection PyTorch ,  YOLOv 5/ YOLOv7 ,  OpenCV p hone_present ,  phone_loc_x ,  phone_loc_ y ,  phone_conf"
+    }
+  ]
+}

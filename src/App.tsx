@@ -4,7 +4,6 @@ import { Hero } from './components/Hero';
 import { TrustedAssessment } from './components/TrustedAssessment';
 import { InteractiveDashboard } from './components/InteractiveDashboard';
 import { Workflow } from './components/Workflow';
-import { SignatureFeatures } from './components/SignatureFeatures';
 import { MobilePreTestPreview } from './components/MobilePreTestPreview';
 import { PrivacyFairness } from './components/PrivacyFairness';
 import { Footer } from './components/Footer';
@@ -45,10 +44,7 @@ export function App() {
         {/* Section C — How It Works (Visual Connected Workflow) */}
         <Workflow />
 
-        {/* Section D — Signature Features (5 Core Capabilities) */}
-        <SignatureFeatures />
-
-        {/* Section E — Mobile Pre-Test Check (Mobile Phone Preview & Troubleshooting) */}
+        {/* Section D — Mobile Pre-Test Check (Mobile Phone Preview & Troubleshooting) */}
         <MobilePreTestPreview onOpenDiagnosticModal={() => setIsPreTestOpen(true)} />
 
         {/* Section F — Privacy and Fairness (Contrasting Light Section & Due Process) */}

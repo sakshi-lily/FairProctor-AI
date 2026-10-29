@@ -98,7 +98,6 @@ export const Footer: React.FC<FooterProps> = ({ onExploreDemo }) => {
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '0.8125rem' }}>
               <a href="#overview" style={{ color: '#475467', textDecoration: 'none', fontWeight: 500 }}>Platform</a>
               <a href="#workflow" style={{ color: '#475467', textDecoration: 'none', fontWeight: 500 }}>How It Works</a>
-              <a href="#features" style={{ color: '#475467', textDecoration: 'none', fontWeight: 500 }}>Features</a>
               <a href="#fairness" style={{ color: '#475467', textDecoration: 'none', fontWeight: 500 }}>Privacy</a>
               <a href="mailto:contact@fairproctor.ai" style={{ color: '#16A765', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}>
                 <Mail size={12} />

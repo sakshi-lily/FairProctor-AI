@@ -8,10 +8,11 @@ export const SignatureFeatures: React.FC = () => {
   return (
     <section
       id="features"
+      className="section-white"
       style={{
         padding: '85px 0',
-        backgroundColor: '#03102F',
-        borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+        backgroundColor: '#FFFFFF',
+        borderTop: '1px solid #E4E7EC'
       }}
     >
       <div className="container">
@@ -22,41 +23,43 @@ export const SignatureFeatures: React.FC = () => {
               fontSize: 'clamp(1.9rem, 3.2vw, 2.75rem)',
               marginBottom: '0.65rem',
               letterSpacing: '-0.03em',
-              color: '#FFFFFF'
+              color: '#101828'
             }}
           >
             Core platform capabilities.
           </h2>
-          <p style={{ fontSize: '1rem', color: '#B8C4D9', lineHeight: 1.55, margin: 0 }}>
+          <p style={{ fontSize: '1rem', color: '#475467', lineHeight: 1.55, margin: 0 }}>
             Five foundational capabilities designed for explainable, evidence-first assessment security.
           </p>
         </div>
 
         {/* Feature 1: Connectivity-Aware Scoring */}
         <div
-          className="card-navy"
+          className="card-white"
           style={{
             padding: '2rem',
             marginBottom: '2rem',
-            border: '1px solid rgba(24, 184, 106, 0.3)'
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E4E7EC',
+            boxShadow: '0 4px 16px rgba(16, 24, 40, 0.04)'
           }}
         >
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2.5rem', alignItems: 'center' }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#18B86A', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#16A765', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
                 <Wifi size={16} />
                 <span>01. Connectivity-Aware Integrity Scoring</span>
               </div>
-              <p style={{ fontSize: '0.9375rem', color: '#B8C4D9', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+              <p style={{ fontSize: '0.9375rem', color: '#475467', lineHeight: 1.6, marginBottom: '1.25rem' }}>
                 Separates UDP packet loss and cellular handovers from behavioural evidence. Audio is buffered in client RAM
                 so network fluctuations never penalize candidates.
               </p>
 
               {/* Slider */}
-              <div style={{ backgroundColor: '#061744', padding: '1rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ backgroundColor: '#F7F9FC', padding: '1rem', borderRadius: '8px', border: '1px solid #E4E7EC' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.75rem' }}>
-                  <span style={{ color: '#FFFFFF', fontWeight: 600 }}>Simulate Packet Loss:</span>
-                  <span style={{ color: '#18B86A', fontWeight: 700 }}>{networkJitter}% Loss</span>
+                  <span style={{ color: '#101828', fontWeight: 600 }}>Simulate Packet Loss:</span>
+                  <span style={{ color: '#16A765', fontWeight: 700 }}>{networkJitter}% Loss</span>
                 </div>
                 <input
                   type="range"
@@ -64,29 +67,29 @@ export const SignatureFeatures: React.FC = () => {
                   max="80"
                   value={networkJitter}
                   onChange={(e) => setNetworkJitter(Number(e.target.value))}
-                  style={{ width: '100%', accentColor: '#18B86A', cursor: 'pointer' }}
+                  style={{ width: '100%', accentColor: '#16A765', cursor: 'pointer' }}
                 />
               </div>
             </div>
 
             {/* Comparison Result */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div style={{ padding: '0.85rem', borderRadius: '5px', backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#FCA5A5', marginBottom: '0.2rem' }}>
+              <div style={{ padding: '0.85rem', borderRadius: '6px', backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#DC2626', marginBottom: '0.2rem' }}>
                   Conventional Proctor:
                 </div>
-                <p style={{ fontSize: '0.8125rem', color: '#EAF1F7', margin: 0 }}>
+                <p style={{ fontSize: '0.8125rem', color: '#991B1B', margin: 0 }}>
                   {networkJitter > 20
                     ? `Camera drop flagged as cheating. Score penalized to ${50 + Math.round(networkJitter * 0.5)}/100.`
                     : 'Stream normal. Baseline maintained.'}
                 </p>
               </div>
 
-              <div style={{ padding: '0.85rem', borderRadius: '5px', backgroundColor: 'rgba(24, 184, 106, 0.08)', border: '1px solid rgba(24, 184, 106, 0.3)' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#18B86A', marginBottom: '0.2rem' }}>
+              <div style={{ padding: '0.85rem', borderRadius: '6px', backgroundColor: '#E8F8EF', border: '1px solid rgba(22, 167, 101, 0.3)' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16A765', marginBottom: '0.2rem' }}>
                   FairProctor Decoupling:
                 </div>
-                <p style={{ fontSize: '0.8125rem', color: '#FFFFFF', margin: 0 }}>
+                <p style={{ fontSize: '0.8125rem', color: '#14532D', margin: 0 }}>
                   {networkJitter > 20
                     ? 'Environmental fault isolated. Score protected at 14/100 (Cleared).'
                     : 'Baseline nominal. Score 14/100.'}
@@ -98,18 +101,20 @@ export const SignatureFeatures: React.FC = () => {
 
         {/* Feature 2: Multi-Signal Behavioural Analysis */}
         <div
-          className="card-navy"
+          className="card-white"
           style={{
             padding: '2rem',
             marginBottom: '2rem',
-            border: '1px solid rgba(255, 255, 255, 0.1)'
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E4E7EC',
+            boxShadow: '0 4px 16px rgba(16, 24, 40, 0.04)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#18B86A', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#16A765', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
             <Activity size={16} />
             <span>02. Multisignal Behavioural Analysis</span>
           </div>
-          <p style={{ fontSize: '0.9375rem', color: '#B8C4D9', lineHeight: 1.6, marginBottom: '1.25rem', maxWidth: '640px' }}>
+          <p style={{ fontSize: '0.9375rem', color: '#475467', lineHeight: 1.6, marginBottom: '1.25rem', maxWidth: '640px' }}>
             Synthesizes typing bursts, clipboard velocity, and window focus to prevent single-point false alarms.
           </p>
 
@@ -128,26 +133,27 @@ export const SignatureFeatures: React.FC = () => {
                   onClick={() => setActiveSignalTab(tab.id as any)}
                   style={{
                     padding: '0.5rem 0.85rem',
-                    borderRadius: '4px',
-                    backgroundColor: isActive ? '#0E2463' : '#061744',
-                    border: `1px solid ${isActive ? '#18B86A' : 'rgba(255,255,255,0.1)'}`,
-                    color: isActive ? '#FFFFFF' : '#B8C4D9',
+                    borderRadius: '6px',
+                    backgroundColor: isActive ? '#E8F8EF' : '#F7F9FC',
+                    border: `1px solid ${isActive ? '#16A765' : '#E4E7EC'}`,
+                    color: isActive ? '#101828' : '#475467',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.4rem',
                     fontSize: '0.8125rem',
-                    fontWeight: 600
+                    fontWeight: 600,
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <IconComp size={14} color={isActive ? '#18B86A' : '#8696B2'} />
+                  <IconComp size={14} color={isActive ? '#16A765' : '#667085'} />
                   <span>{tab.label}</span>
                 </button>
               );
             })}
           </div>
 
-          <div style={{ backgroundColor: '#061744', padding: '1rem', borderRadius: '6px', fontSize: '0.875rem', color: '#EAF1F7', lineHeight: 1.6 }}>
+          <div style={{ backgroundColor: '#F7F9FC', border: '1px solid #E4E7EC', padding: '1rem', borderRadius: '8px', fontSize: '0.875rem', color: '#101828', lineHeight: 1.6 }}>
             {activeSignalTab === 'paste' && 'Detects instantaneous 4,000 WPM insertion speed without pre-drafting keystrokes.'}
             {activeSignalTab === 'keystroke' && 'Validates natural typing cadence and backspace edits calibrated to question difficulty.'}
             {activeSignalTab === 'blur' && 'Whitelists sanctioned formula modals and approved PDF references in the DOM.'}
@@ -158,34 +164,34 @@ export const SignatureFeatures: React.FC = () => {
         {/* Features 3, 4, 5 Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
           {/* Feature 3: Timestamped, Explainable Evidence */}
-          <div className="card-navy" style={{ padding: '1.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#18B86A', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
+          <div className="card-white" style={{ padding: '1.75rem', backgroundColor: '#FFFFFF', border: '1px solid #E4E7EC' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#16A765', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
               <Clock size={16} />
               <span>03. Timestamped Evidence</span>
             </div>
-            <p style={{ fontSize: '0.875rem', color: '#B8C4D9', lineHeight: 1.6, margin: 0 }}>
+            <p style={{ fontSize: '0.875rem', color: '#475467', lineHeight: 1.6, margin: 0 }}>
               Every flagged point links to millisecond timestamps, raw metrics, and a plain-English explanation signed with HMAC-SHA256.
             </p>
           </div>
 
           {/* Feature 4: Reviewer Prioritization */}
-          <div className="card-navy" style={{ padding: '1.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#18B86A', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
+          <div className="card-white" style={{ padding: '1.75rem', backgroundColor: '#FFFFFF', border: '1px solid #E4E7EC' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#16A765', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
               <Users size={16} />
               <span>04. Reviewer Prioritization</span>
             </div>
-            <p style={{ fontSize: '0.875rem', color: '#B8C4D9', lineHeight: 1.6, margin: 0 }}>
+            <p style={{ fontSize: '0.875rem', color: '#475467', lineHeight: 1.6, margin: 0 }}>
               Auto-clears 85–90% of genuine sessions, surfacing only prioritized multi-signal anomalies for human review.
             </p>
           </div>
 
           {/* Feature 5: Candidate Appeals */}
-          <div className="card-navy" style={{ padding: '1.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#18B86A', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
+          <div className="card-white" style={{ padding: '1.75rem', backgroundColor: '#FFFFFF', border: '1px solid #E4E7EC' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#16A765', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.4rem' }}>
               <Scale size={16} />
               <span>05. Candidate Appeals</span>
             </div>
-            <p style={{ fontSize: '0.875rem', color: '#B8C4D9', lineHeight: 1.6, margin: 0 }}>
+            <p style={{ fontSize: '0.875rem', color: '#475467', lineHeight: 1.6, margin: 0 }}>
               Guaranteed 48-hour rebuttal window allowing candidates to inspect questioned events and submit ISP outage logs.
             </p>
           </div>

@@ -1,45 +1,33 @@
-/* FairProctor AI — Enterprise Design Tokens & Master Stylesheet */
+/* FairProctor AI — Clean White Enterprise Design Tokens & Master Stylesheet */
 :root {
-  /* Color System */
-  --primary-navy: #061744;
-  --deep-navy: #03102F;
-  --navy-surface: #0A1E54;
-  --navy-card: #0E2463;
-  --navy-card-border: rgba(255, 255, 255, 0.12);
+  /* Color System — White Theme */
+  --main-bg: #FFFFFF;
+  --alt-bg: #F7F9FC;
+  --primary-text: #101828;
+  --secondary-text: #475467;
+  --border-color: #E4E7EC;
 
-  --brand-green: #18B86A;
-  --brand-green-hover: #149B58;
-  --brand-green-glow: rgba(24, 184, 106, 0.28);
-  --brand-green-soft: rgba(24, 184, 106, 0.12);
-  --brand-green-border: rgba(24, 184, 106, 0.28);
-
-  --mint-accent: #79F2C0;
-  --mint-soft: rgba(121, 242, 192, 0.14);
+  --brand-green: #16A765;
+  --brand-green-hover: #138D55;
+  --brand-green-soft: #E8F8EF;
+  --brand-green-border: rgba(22, 167, 101, 0.3);
+  --brand-green-glow: rgba(22, 167, 101, 0.18);
 
   --white: #FFFFFF;
-  --light-bg: #EAF1F7;
-  --light-bg-subtle: #F4F8FC;
-  --light-border: rgba(6, 23, 68, 0.1);
-  --light-card-bg: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --card-border: #E4E7EC;
 
-  --text-dark: #344054;
-  --text-dark-headings: #061744;
-  --text-dark-muted: #667085;
+  --warning-amber: #B45309;
+  --warning-bg: #FEF3C7;
+  --warning-border: #FCD34D;
 
-  --text-white: #FFFFFF;
-  --text-muted-dark: #B8C4D9;
-  --text-dim-dark: #8696B2;
-
-  --warning-amber: #F59E0B;
-  --warning-bg: rgba(245, 158, 11, 0.12);
-  --warning-border: rgba(245, 158, 11, 0.25);
-
-  --danger-coral: #EF4444;
-  --danger-bg: rgba(239, 68, 68, 0.12);
-  --danger-border: rgba(239, 68, 68, 0.25);
+  --danger-coral: #DC2626;
+  --danger-bg: #FEF2F2;
+  --danger-border: #FCA5A5;
 
   --info-blue: #0284C7;
-  --info-bg: rgba(2, 132, 199, 0.1);
+  --info-bg: #E0F2FE;
+  --info-border: #BAE6FD;
 
   /* Typography */
   --font-sans: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -58,8 +46,8 @@
 
 html {
   font-family: var(--font-sans);
-  background-color: var(--primary-navy);
-  color: var(--text-white);
+  background-color: var(--main-bg);
+  color: var(--primary-text);
   scroll-behavior: smooth;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -68,7 +56,8 @@ html {
 
 body {
   min-height: 100vh;
-  background-color: var(--primary-navy);
+  background-color: var(--main-bg);
+  color: var(--primary-text);
   overflow-x: hidden;
   line-height: 1.6;
 }
@@ -79,10 +68,10 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--deep-navy);
+  background: var(--alt-bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--navy-card);
+  background: #D0D5DD;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -95,11 +84,13 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   letter-spacing: -0.025em;
   line-height: 1.2;
+  color: var(--primary-text);
 }
 
 p {
   font-size: 1rem;
   line-height: 1.65;
+  color: var(--secondary-text);
 }
 
 code, .font-mono {
@@ -116,7 +107,7 @@ code, .font-mono {
   padding-right: var(--container-pad);
 }
 
-/* Corporate Buttons */
+/* Enterprise Corporate Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -139,50 +130,42 @@ code, .font-mono {
 .btn-green {
   background-color: var(--brand-green);
   color: #FFFFFF;
-  box-shadow: 0 2px 10px var(--brand-green-glow);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.1), 0 1px 2px rgba(16, 24, 40, 0.06);
 }
 
 .btn-green:hover {
   background-color: var(--brand-green-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(24, 184, 106, 0.4);
+  box-shadow: 0 4px 12px rgba(22, 167, 101, 0.28);
 }
 
 .btn-green:active {
   transform: translateY(0);
 }
 
-.btn-outline-white {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--text-white);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+.btn-outline-white,
+.btn-outline-navy {
+  background-color: #FFFFFF;
+  color: var(--primary-text);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
 }
 
-.btn-outline-white:hover {
-  background-color: rgba(255, 255, 255, 0.12);
-  border-color: #FFFFFF;
+.btn-outline-white:hover,
+.btn-outline-navy:hover {
+  background-color: var(--alt-bg);
+  border-color: #D0D5DD;
   transform: translateY(-1px);
 }
 
 .btn-navy {
-  background-color: var(--primary-navy);
+  background-color: var(--primary-text);
   color: #FFFFFF;
 }
 
 .btn-navy:hover {
-  background-color: var(--deep-navy);
+  background-color: #1D2939;
   transform: translateY(-1px);
-}
-
-.btn-outline-navy {
-  background-color: transparent;
-  color: var(--primary-navy);
-  border: 1px solid rgba(6, 23, 68, 0.2);
-}
-
-.btn-outline-navy:hover {
-  background-color: rgba(6, 23, 68, 0.05);
-  border-color: var(--primary-navy);
 }
 
 .btn-sm {
@@ -199,8 +182,8 @@ code, .font-mono {
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.3rem 0.75rem;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.65rem;
   border-radius: 9999px;
   width: fit-content;
 }
@@ -209,18 +192,6 @@ code, .font-mono {
   background: var(--brand-green-soft);
   color: var(--brand-green);
   border: 1px solid var(--brand-green-border);
-}
-
-.badge-mint {
-  background: var(--mint-soft);
-  color: var(--mint-accent);
-  border: 1px solid rgba(121, 242, 192, 0.3);
-}
-
-.badge-navy {
-  background: rgba(6, 23, 68, 0.08);
-  color: var(--primary-navy);
-  border: 1px solid rgba(6, 23, 68, 0.15);
 }
 
 .badge-warning {
@@ -238,81 +209,47 @@ code, .font-mono {
 .badge-info {
   background: var(--info-bg);
   color: var(--info-blue);
-  border: 1px solid rgba(2, 132, 199, 0.2);
+  border: 1px solid var(--info-border);
 }
 
-/* Section Theming */
-.section-navy {
-  background-color: var(--primary-navy);
-  color: var(--text-white);
+/* Section Background Classes */
+.section-white {
+  background-color: #FFFFFF;
+  color: var(--primary-text);
 }
 
-.section-deep-navy {
-  background-color: var(--deep-navy);
-  color: var(--text-white);
+.section-alt {
+  background-color: #F7F9FC;
+  color: var(--primary-text);
 }
 
 .section-light {
-  background-color: var(--light-bg);
-  color: var(--text-dark);
+  background-color: #F7F9FC;
+  color: var(--primary-text);
 }
 
-.section-light h2,
-.section-light h3,
-.section-light h4 {
-  color: var(--text-dark-headings);
-}
-
-.section-light p {
-  color: var(--text-dark);
-}
-
-.section-white {
-  background-color: #FFFFFF;
-  color: var(--text-dark);
-}
-
-.section-white h2,
-.section-white h3,
-.section-white h4 {
-  color: var(--text-dark-headings);
-}
-
-.section-white p {
-  color: var(--text-dark);
-}
-
-/* Enterprise Card Styles */
-.card-navy {
-  background: var(--navy-surface);
-  border: 1px solid var(--navy-card-border);
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(3, 16, 47, 0.5);
-  transition: border-color 0.2s ease, transform 0.2s ease;
-}
-
-.card-navy:hover {
-  border-color: rgba(24, 184, 106, 0.4);
-}
-
+/* Card Styles */
+.card-navy,
 .card-white {
   background: #FFFFFF;
-  border: 1px solid var(--light-border);
-  border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(6, 23, 68, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px -2px rgba(16, 24, 40, 0.04), 0 2px 6px -2px rgba(16, 24, 40, 0.02);
   transition: all 0.2s ease;
 }
 
+.card-navy:hover,
 .card-white:hover {
-  box-shadow: 0 10px 30px rgba(6, 23, 68, 0.08);
-  border-color: rgba(24, 184, 106, 0.35);
+  box-shadow: 0 8px 24px -4px rgba(16, 24, 40, 0.08);
+  border-color: #D0D5DD;
 }
 
-/* Subtle Grid Background for Navy Hero */
+/* Subtle Grid Background for Hero */
 .bg-navy-grid {
+  background-color: #FFFFFF;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    linear-gradient(to right, rgba(16, 24, 40, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(16, 24, 40, 0.04) 1px, transparent 1px);
   background-size: 48px 48px;
 }
 

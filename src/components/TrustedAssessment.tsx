@@ -21,23 +21,23 @@ export const TrustedAssessment: React.FC = () => {
   ];
 
   return (
-    <section className="section-light" style={{ padding: '80px 0', borderTop: '1px solid rgba(6, 23, 68, 0.08)' }}>
+    <section className="section-alt" style={{ padding: '80px 0', borderTop: '1px solid #E4E7EC' }}>
       <div className="container">
         {/* Section Header */}
         <div style={{ maxWidth: '720px', margin: '0 auto 2.75rem auto', textAlign: 'center' }}>
           <h2
             style={{
               fontSize: 'clamp(1.9rem, 3.2vw, 2.75rem)',
-              color: '#061744',
+              color: '#101828',
               lineHeight: 1.2,
               marginBottom: '0.85rem',
               letterSpacing: '-0.03em'
             }}
           >
             Security should be intelligent.{' '}
-            <span style={{ color: '#18B86A' }}>Fairness should be fundamental.</span>
+            <span style={{ color: '#16A765' }}>Fairness should be fundamental.</span>
           </h2>
-          <p style={{ fontSize: '1.05rem', color: '#344054', lineHeight: 1.6, margin: 0 }}>
+          <p style={{ fontSize: '1.05rem', color: '#475467', lineHeight: 1.6, margin: 0 }}>
             Real-world testing involves network stutters, shared spaces, and varying lighting. FairProctor isolates
             environmental noise from actual behavioural evidence.
           </p>
@@ -58,28 +58,28 @@ export const TrustedAssessment: React.FC = () => {
               <div
                 key={idx}
                 className="card-white"
-                style={{ padding: '1.75rem' }}
+                style={{ padding: '1.75rem', backgroundColor: '#FFFFFF', border: '1px solid #E4E7EC' }}
               >
                 <div
                   style={{
                     width: '40px',
                     height: '40px',
                     borderRadius: '8px',
-                    backgroundColor: 'rgba(6, 23, 68, 0.06)',
+                    backgroundColor: '#E8F8EF',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginBottom: '1rem'
                   }}
                 >
-                  <IconComponent size={20} color="#061744" />
+                  <IconComponent size={20} color="#16A765" />
                 </div>
 
-                <h3 style={{ fontSize: '1.15rem', color: '#061744', marginBottom: '0.5rem', fontWeight: 700 }}>
+                <h3 style={{ fontSize: '1.15rem', color: '#101828', marginBottom: '0.5rem', fontWeight: 700 }}>
                   {item.title}
                 </h3>
 
-                <p style={{ fontSize: '0.875rem', color: '#344054', margin: 0, lineHeight: 1.6 }}>
+                <p style={{ fontSize: '0.875rem', color: '#475467', margin: 0, lineHeight: 1.6 }}>
                   {item.detail}
                 </p>
               </div>
@@ -90,29 +90,31 @@ export const TrustedAssessment: React.FC = () => {
         {/* Concise Trust Pillars Bar */}
         <div
           style={{
-            backgroundColor: '#061744',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E4E7EC',
             borderRadius: '8px',
             padding: '1.25rem 2rem',
-            color: '#FFFFFF',
+            color: '#101828',
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: '1.5rem',
-            alignItems: 'center'
+            alignItems: 'center',
+            boxShadow: '0 1px 3px rgba(16, 24, 40, 0.05)'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <UserCheck size={18} color="#18B86A" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Human-Led Review Authority</span>
+            <UserCheck size={18} color="#16A765" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#101828' }}>Human-Led Review Authority</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <Scale size={18} color="#18B86A" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Zero Low-Bandwidth Penalty</span>
+            <Scale size={18} color="#16A765" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#101828' }}>Zero Low-Bandwidth Penalty</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <Lock size={18} color="#18B86A" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Biometric Zero-Retention</span>
+            <Lock size={18} color="#16A765" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#101828' }}>Biometric Zero-Retention</span>
           </div>
         </div>
       </div>

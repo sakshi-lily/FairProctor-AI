@@ -72,16 +72,16 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
       label: 'Environmental',
       status: 'Excluded from risk score.',
       icon: Wifi,
-      nodeColor: '#38BDF8',
-      nodeBorder: 'rgba(56, 189, 248, 0.45)',
-      nodeGlow: 'rgba(56, 189, 248, 0.3)',
-      labelColor: '#38BDF8',
-      labelBg: 'rgba(56, 189, 248, 0.12)',
-      labelBorder: 'rgba(56, 189, 248, 0.28)',
-      statusColor: '#18B86A',
-      statusBg: 'rgba(24, 184, 106, 0.12)',
-      statusBorder: 'rgba(24, 184, 106, 0.3)',
-      cardBorderHover: 'rgba(56, 189, 248, 0.4)'
+      nodeColor: '#0284C7',
+      nodeBorder: '#BAE6FD',
+      nodeGlow: 'rgba(2, 132, 199, 0.15)',
+      labelColor: '#0284C7',
+      labelBg: '#E0F2FE',
+      labelBorder: '#BAE6FD',
+      statusColor: '#16A765',
+      statusBg: '#E8F8EF',
+      statusBorder: 'rgba(22, 167, 101, 0.25)',
+      cardBorderHover: '#0284C7'
     },
     {
       id: 'ev-tab',
@@ -91,16 +91,16 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
       label: 'Review',
       status: 'Context required.',
       icon: ExternalLink,
-      nodeColor: '#FBBF24',
-      nodeBorder: 'rgba(245, 158, 11, 0.45)',
-      nodeGlow: 'rgba(245, 158, 11, 0.3)',
-      labelColor: '#FBBF24',
-      labelBg: 'rgba(245, 158, 11, 0.12)',
-      labelBorder: 'rgba(245, 158, 11, 0.28)',
-      statusColor: '#FCD34D',
-      statusBg: 'rgba(245, 158, 11, 0.1)',
-      statusBorder: 'rgba(245, 158, 11, 0.25)',
-      cardBorderHover: 'rgba(245, 158, 11, 0.4)'
+      nodeColor: '#D97706',
+      nodeBorder: '#FCD34D',
+      nodeGlow: 'rgba(217, 119, 6, 0.15)',
+      labelColor: '#B45309',
+      labelBg: '#FEF3C7',
+      labelBorder: '#FCD34D',
+      statusColor: '#B45309',
+      statusBg: '#FFFBEB',
+      statusBorder: '#FDE68A',
+      cardBorderHover: '#F59E0B'
     },
     {
       id: 'ev-pattern',
@@ -110,13 +110,13 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
       label: 'Review',
       supportingNote: '3 sessions · review evidence',
       icon: Users,
-      nodeColor: '#60A5FA',
-      nodeBorder: 'rgba(96, 165, 250, 0.45)',
-      nodeGlow: 'rgba(96, 165, 250, 0.3)',
-      labelColor: '#FBBF24',
-      labelBg: 'rgba(245, 158, 11, 0.12)',
-      labelBorder: 'rgba(245, 158, 11, 0.28)',
-      cardBorderHover: 'rgba(96, 165, 250, 0.4)'
+      nodeColor: '#2563EB',
+      nodeBorder: '#BFDBFE',
+      nodeGlow: 'rgba(37, 99, 235, 0.15)',
+      labelColor: '#B45309',
+      labelBg: '#FEF3C7',
+      labelBorder: '#FCD34D',
+      cardBorderHover: '#3B82F6'
     }
   ];
 
@@ -149,25 +149,26 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
       className="bg-navy-grid"
       style={{
         position: 'relative',
-        minHeight: '90vh',
+        minHeight: '85vh',
         display: 'flex',
         alignItems: 'center',
-        paddingTop: '110px',
-        paddingBottom: '75px',
-        backgroundColor: '#061744',
-        overflow: 'hidden'
+        paddingTop: '115px',
+        paddingBottom: '80px',
+        backgroundColor: '#FFFFFF',
+        overflow: 'hidden',
+        borderBottom: '1px solid #E4E7EC'
       }}
     >
       {/* Background ambient lighting */}
       <div
         style={{
           position: 'absolute',
-          top: '-15%',
-          right: '15%',
+          top: '-10%',
+          right: '10%',
           width: '550px',
           height: '550px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(24, 184, 106, 0.1) 0%, rgba(6, 23, 68, 0) 70%)',
+          background: 'radial-gradient(circle, rgba(22, 167, 101, 0.08) 0%, rgba(255, 255, 255, 0) 70%)',
           filter: 'blur(80px)',
           pointerEvents: 'none',
           zIndex: 0
@@ -179,11 +180,11 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '3rem',
+            gap: '3.5rem',
             alignItems: 'center'
           }}
         >
-          {/* Left: Strong Headline, Short Subtitle, 2 CTAs, Preserved Exactly */}
+          {/* Left: Headline, Subtitle, Exactly 2 CTAs, No Trust Row */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -197,18 +198,18 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                 lineHeight: 1.15,
                 letterSpacing: '-0.03em',
                 marginBottom: '1.25rem',
-                color: '#FFFFFF'
+                color: '#101828'
               }}
             >
               Protect exam integrity.{' '}
-              <span style={{ color: '#18B86A' }}>Preserve fairness.</span>
+              <span style={{ color: '#16A765' }}>Preserve fairness.</span>
             </h1>
 
             {/* Short Subtitle */}
             <p
               style={{
                 fontSize: 'clamp(1.05rem, 1.3vw, 1.2rem)',
-                color: '#B8C4D9',
+                color: '#475467',
                 lineHeight: 1.6,
                 maxWidth: '520px',
                 marginBottom: '2rem'
@@ -218,14 +219,13 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
               network instability.
             </p>
 
-            {/* Exactly Two CTAs */}
+            {/* Exactly Two CTAs without any trailing trust labels */}
             <div
               style={{
                 display: 'flex',
                 flexWrap: 'wrap',
                 gap: '0.85rem',
-                alignItems: 'center',
-                marginBottom: '2rem'
+                alignItems: 'center'
               }}
             >
               <button onClick={onExploreDemo} className="btn btn-green">
@@ -238,35 +238,9 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                 <span>How It Works</span>
               </button>
             </div>
-
-            {/* Concise Trust Line */}
-            <div
-              style={{
-                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                paddingTop: '1rem'
-              }}
-            >
-              <p
-                style={{
-                  fontSize: '0.8125rem',
-                  color: '#FFFFFF',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  flexWrap: 'wrap'
-                }}
-              >
-                <span>Evidence-led</span>
-                <span style={{ color: '#18B86A' }}>·</span>
-                <span>Privacy-conscious</span>
-                <span style={{ color: '#18B86A' }}>·</span>
-                <span>Human-reviewed</span>
-              </p>
-            </div>
           </motion.div>
 
-          {/* Right: Evidence Timeline Panel */}
+          {/* Right: Evidence Timeline Panel (Light Theme Dashboard) */}
           <motion.div
             ref={containerRef}
             onMouseMove={handleMouseMove}
@@ -290,22 +264,21 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                 maxWidth: '510px',
                 position: 'relative',
                 borderRadius: '12px',
-                backgroundColor: 'rgba(3, 16, 47, 0.88)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 24px 48px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(24, 184, 106, 0.1)',
-                overflow: 'hidden',
-                backdropFilter: 'blur(12px)'
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #E4E7EC',
+                boxShadow: '0 20px 40px -15px rgba(16, 24, 40, 0.08), 0 0 0 1px rgba(22, 167, 101, 0.08)',
+                overflow: 'hidden'
               }}
             >
               {/* Panel Header */}
               <div
                 style={{
                   padding: '1.1rem 1.25rem',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderBottom: '1px solid #E4E7EC',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  backgroundColor: 'rgba(6, 23, 68, 0.6)',
+                  backgroundColor: '#F7F9FC',
                   flexWrap: 'wrap',
                   gap: '0.6rem'
                 }}
@@ -317,21 +290,21 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                       width: '28px',
                       height: '28px',
                       borderRadius: '6px',
-                      backgroundColor: 'rgba(24, 184, 106, 0.12)',
-                      border: '1px solid rgba(24, 184, 106, 0.3)',
+                      backgroundColor: '#E8F8EF',
+                      border: '1px solid rgba(22, 167, 101, 0.25)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
                     }}
                   >
-                    <ShieldCheck size={16} color="#18B86A" />
+                    <ShieldCheck size={16} color="#16A765" />
                   </div>
 
                   <span
                     style={{
                       fontSize: '0.9375rem',
                       fontWeight: 700,
-                      color: '#FFFFFF',
+                      color: '#101828',
                       letterSpacing: '-0.01em'
                     }}
                   >
@@ -349,9 +322,9 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                       fontSize: '0.6875rem',
                       fontWeight: 700,
                       letterSpacing: '0.04em',
-                      backgroundColor: 'rgba(24, 184, 106, 0.12)',
-                      border: '1px solid rgba(24, 184, 106, 0.35)',
-                      color: '#18B86A'
+                      backgroundColor: '#E8F8EF',
+                      border: '1px solid rgba(22, 167, 101, 0.3)',
+                      color: '#16A765'
                     }}
                   >
                     <span
@@ -359,8 +332,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                         width: '6px',
                         height: '6px',
                         borderRadius: '50%',
-                        backgroundColor: '#18B86A',
-                        boxShadow: '0 0 6px #18B86A'
+                        backgroundColor: '#16A765'
                       }}
                     />
                     <span>LIVE DEMO</span>
@@ -377,9 +349,9 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                     borderRadius: '6px',
                     fontSize: '0.75rem',
                     fontWeight: 600,
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.28)',
-                    color: '#FBBF24'
+                    backgroundColor: '#FEF3C7',
+                    border: '1px solid #FCD34D',
+                    color: '#92400E'
                   }}
                 >
                   <span
@@ -387,11 +359,11 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                       width: '6px',
                       height: '6px',
                       borderRadius: '50%',
-                      backgroundColor: '#F59E0B'
+                      backgroundColor: '#D97706'
                     }}
                   />
                   <span>
-                    Review Priority: <strong style={{ color: '#FCD34D' }}>Medium</strong>
+                    Review Priority: <strong style={{ color: '#B45309' }}>Medium</strong>
                   </span>
                 </div>
               </div>
@@ -400,7 +372,8 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
               <div
                 style={{
                   padding: '1.25rem',
-                  position: 'relative'
+                  position: 'relative',
+                  backgroundColor: '#FFFFFF'
                 }}
               >
                 {/* Continuous Vertical Track Line */}
@@ -412,7 +385,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                     bottom: '2.5rem',
                     width: '2px',
                     background:
-                      'linear-gradient(to bottom, rgba(56, 189, 248, 0.4) 0%, rgba(245, 158, 11, 0.35) 50%, rgba(96, 165, 250, 0.3) 100%)',
+                      'linear-gradient(to bottom, #BAE6FD 0%, #FDE68A 50%, #BFDBFE 100%)',
                     zIndex: 0
                   }}
                 />
@@ -447,13 +420,13 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                             width: '28px',
                             height: '28px',
                             borderRadius: '50%',
-                            backgroundColor: '#061744',
+                            backgroundColor: '#FFFFFF',
                             border: `1.5px solid ${ev.nodeBorder}`,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: ev.nodeColor,
-                            boxShadow: isHovered ? `0 0 10px ${ev.nodeGlow}` : 'none',
+                            boxShadow: isHovered ? `0 0 8px ${ev.nodeGlow}` : 'none',
                             transition: 'all 0.25s ease',
                             marginTop: '0.15rem'
                           }}
@@ -465,14 +438,13 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                         <div
                           style={{
                             flex: 1,
-                            backgroundColor: isHovered
-                              ? 'rgba(14, 36, 99, 0.55)'
-                              : 'rgba(6, 23, 68, 0.55)',
-                            border: `1px solid ${
-                              isHovered ? ev.cardBorderHover : 'rgba(255, 255, 255, 0.08)'
-                            }`,
+                            backgroundColor: isHovered ? '#F7F9FC' : '#FFFFFF',
+                            border: `1px solid ${isHovered ? ev.cardBorderHover : '#E4E7EC'}`,
                             borderRadius: '8px',
                             padding: '0.75rem 0.95rem',
+                            boxShadow: isHovered
+                              ? '0 4px 12px rgba(16, 24, 40, 0.05)'
+                              : '0 1px 3px rgba(16, 24, 40, 0.02)',
                             transition: 'all 0.2s ease',
                             transform: isHovered ? 'translateX(2px)' : 'none'
                           }}
@@ -500,18 +472,18 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                                 className="font-mono"
                                 style={{
                                   fontSize: '0.75rem',
-                                  color: '#8696B2',
+                                  color: '#667085',
                                   fontWeight: 600
                                 }}
                               >
                                 {ev.time}
                               </span>
-                              <span style={{ color: '#8696B2', fontSize: '0.75rem' }}>—</span>
+                              <span style={{ color: '#D0D5DD', fontSize: '0.75rem' }}>—</span>
                               <span
                                 style={{
                                   fontSize: '0.875rem',
                                   fontWeight: 700,
-                                  color: '#FFFFFF'
+                                  color: '#101828'
                                 }}
                               >
                                 {ev.title}
@@ -540,7 +512,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                           <p
                             style={{
                               fontSize: '0.8125rem',
-                              color: '#B8C4D9',
+                              color: '#475467',
                               margin: '0 0 0.5rem 0',
                               lineHeight: 1.45
                             }}
@@ -573,7 +545,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                                 }}
                               >
                                 {ev.label === 'Environmental' ? (
-                                  <CheckCircle2 size={13} color="#18B86A" />
+                                  <CheckCircle2 size={13} color="#16A765" />
                                 ) : (
                                   <span
                                     style={{
@@ -598,9 +570,9 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                                   borderRadius: '4px',
                                   fontSize: '0.75rem',
                                   fontWeight: 600,
-                                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                  border: '1px solid rgba(59, 130, 246, 0.25)',
-                                  color: '#93C5FD'
+                                  backgroundColor: '#EFF6FF',
+                                  border: '1px solid #BFDBFE',
+                                  color: '#1D4ED8'
                                 }}
                               >
                                 <span
@@ -608,7 +580,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                                     width: '6px',
                                     height: '6px',
                                     borderRadius: '50%',
-                                    backgroundColor: '#60A5FA'
+                                    backgroundColor: '#3B82F6'
                                   }}
                                 />
                                 <span>{ev.supportingNote}</span>
@@ -626,18 +598,18 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
               <div
                 style={{
                   padding: '0.75rem 1.25rem',
-                  backgroundColor: 'rgba(6, 23, 68, 0.85)',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: '#F7F9FC',
+                  borderTop: '1px solid #E4E7EC',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.6rem'
                 }}
               >
-                <CheckCircle2 size={16} color="#18B86A" style={{ flexShrink: 0 }} />
+                <CheckCircle2 size={16} color="#16A765" style={{ flexShrink: 0 }} />
                 <span
                   style={{
                     fontSize: '0.8125rem',
-                    color: '#B8C4D9',
+                    color: '#475467',
                     fontWeight: 500,
                     lineHeight: 1.4
                   }}

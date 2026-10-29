@@ -50,8 +50,8 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
       style={{
         padding: '85px 0',
         position: 'relative',
-        backgroundColor: '#03102F',
-        borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+        backgroundColor: '#FFFFFF',
+        borderTop: '1px solid #E4E7EC'
       }}
     >
       <div className="container">
@@ -62,12 +62,12 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
               fontSize: 'clamp(1.9rem, 3.2vw, 2.75rem)',
               marginBottom: '0.65rem',
               letterSpacing: '-0.03em',
-              color: '#FFFFFF'
+              color: '#101828'
             }}
           >
             Reviewer triage dashboard.
           </h2>
-          <p style={{ fontSize: '1rem', color: '#B8C4D9', lineHeight: 1.55, margin: 0 }}>
+          <p style={{ fontSize: '1rem', color: '#475467', lineHeight: 1.55, margin: 0 }}>
             Audit multi-signal telemetry with explainable reasoning. Select a session below to inspect live records.
           </p>
 
@@ -79,28 +79,28 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
               alignItems: 'center',
               gap: '0.45rem',
               fontSize: '0.75rem',
-              color: '#8696B2'
+              color: '#667085'
             }}
           >
-            <Info size={14} color="#18B86A" />
+            <Info size={14} color="#16A765" />
             <span>Illustrative demo data · Risk scores are advisory for educators</span>
           </div>
         </div>
 
         {/* Dashboard Shell Container */}
         <div
-          className="card-navy"
+          className="card-white"
           style={{
             overflow: 'hidden',
-            border: '1px solid rgba(24, 184, 106, 0.3)',
-            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)'
+            border: '1px solid #E4E7EC',
+            boxShadow: '0 12px 32px rgba(16, 24, 40, 0.08)'
           }}
         >
           {/* Top Bar: Session Info & Ranked Queue */}
           <div
             style={{
-              backgroundColor: '#061744',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: '#F7F9FC',
+              borderBottom: '1px solid #E4E7EC',
               padding: '0.85rem 1.25rem',
               display: 'flex',
               flexWrap: 'wrap',
@@ -115,14 +115,14 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                 style={{
                   width: '34px',
                   height: '34px',
-                  borderRadius: '5px',
-                  backgroundColor: '#0E2463',
-                  border: '1px solid rgba(24, 184, 106, 0.4)',
+                  borderRadius: '6px',
+                  backgroundColor: '#E8F8EF',
+                  border: '1px solid rgba(22, 167, 101, 0.3)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 700,
-                  color: '#18B86A',
+                  color: '#16A765',
                   fontSize: '0.8125rem'
                 }}
               >
@@ -130,23 +130,24 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#FFFFFF' }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#101828' }}>
                     {currentSession.candidateName}
                   </span>
                   <span
                     className="font-mono"
                     style={{
                       fontSize: '0.7rem',
-                      color: '#18B86A',
-                      backgroundColor: 'rgba(24, 184, 106, 0.12)',
+                      color: '#16A765',
+                      backgroundColor: '#E8F8EF',
                       padding: '1px 6px',
-                      borderRadius: '3px'
+                      borderRadius: '3px',
+                      border: '1px solid rgba(22, 167, 101, 0.25)'
                     }}
                   >
                     {currentSession.id}
                   </span>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#B8C4D9' }}>
+                <div style={{ fontSize: '0.75rem', color: '#475467' }}>
                   {currentSession.examTitle}
                 </div>
               </div>
@@ -154,7 +155,7 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
 
             {/* Session Queue Switcher */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.75rem', color: '#8696B2', fontWeight: 700 }}>
+              <span style={{ fontSize: '0.75rem', color: '#667085', fontWeight: 700 }}>
                 QUEUE:
               </span>
               {MOCK_SESSIONS.map((sess) => {
@@ -167,11 +168,11 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                       setSelectedEventId(sess.timeline[0]?.id || '');
                     }}
                     style={{
-                      backgroundColor: isSelected ? '#0E2463' : 'rgba(10, 30, 84, 0.6)',
-                      border: `1px solid ${isSelected ? '#18B86A' : 'rgba(255,255,255,0.1)'}`,
-                      color: isSelected ? '#FFFFFF' : '#B8C4D9',
+                      backgroundColor: isSelected ? '#E8F8EF' : '#FFFFFF',
+                      border: `1px solid ${isSelected ? '#16A765' : '#E4E7EC'}`,
+                      color: isSelected ? '#101828' : '#475467',
                       padding: '0.35rem 0.65rem',
-                      borderRadius: '4px',
+                      borderRadius: '5px',
                       cursor: 'pointer',
                       fontSize: '0.75rem',
                       fontWeight: 600,
@@ -188,14 +189,14 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                         borderRadius: '50%',
                         backgroundColor:
                           sess.integrityRiskScore < 25
-                            ? '#18B86A'
+                            ? '#16A765'
                             : sess.integrityRiskScore < 60
                             ? '#F59E0B'
                             : '#EF4444'
                       }}
                     />
                     <span>{sess.candidateName.split(' ')[0]}</span>
-                    <span style={{ opacity: 0.75 }}>({sess.integrityRiskScore})</span>
+                    <span style={{ opacity: 0.8 }}>({sess.integrityRiskScore})</span>
                   </button>
                 );
               })}
@@ -214,8 +215,8 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
             {/* Left Sidebar: Scores & Actions */}
             <div
               style={{
-                backgroundColor: '#061744',
-                borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+                backgroundColor: '#F7F9FC',
+                borderRight: '1px solid #E4E7EC',
                 padding: '1.25rem',
                 display: 'flex',
                 flexDirection: 'column',
@@ -225,14 +226,15 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
               {/* Risk Score */}
               <div
                 style={{
-                  backgroundColor: '#0A1E54',
-                  borderRadius: '6px',
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '8px',
                   padding: '1rem',
                   textAlign: 'center',
-                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                  border: '1px solid #E4E7EC',
+                  boxShadow: '0 1px 3px rgba(16, 24, 40, 0.04)'
                 }}
               >
-                <div style={{ fontSize: '0.6875rem', color: '#B8C4D9', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '0.6875rem', color: '#667085', textTransform: 'uppercase', fontWeight: 600 }}>
                   Risk Score
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.25rem', margin: '0.35rem 0' }}>
@@ -242,7 +244,7 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                       fontWeight: 800,
                       color:
                         currentSession.integrityRiskScore < 25
-                          ? '#18B86A'
+                          ? '#16A765'
                           : currentSession.integrityRiskScore < 60
                           ? '#F59E0B'
                           : '#EF4444',
@@ -251,7 +253,7 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                   >
                     {currentSession.integrityRiskScore}
                   </span>
-                  <span style={{ fontSize: '0.85rem', color: '#8696B2' }}>/ 100</span>
+                  <span style={{ fontSize: '0.85rem', color: '#667085' }}>/ 100</span>
                 </div>
                 <div
                   style={{
@@ -259,10 +261,10 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                     fontWeight: 700,
                     color:
                       currentSession.integrityRiskScore < 25
-                        ? '#18B86A'
+                        ? '#16A765'
                         : currentSession.integrityRiskScore < 60
-                        ? '#F59E0B'
-                        : '#EF4444'
+                        ? '#B45309'
+                        : '#DC2626'
                   }}
                 >
                   {currentSession.integrityRiskScore < 25
@@ -276,22 +278,22 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
               {/* Decoupled Indicators */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {/* Behavioural Risk */}
-                <div style={{ backgroundColor: '#0A1E54', borderRadius: '6px', padding: '0.75rem' }}>
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '8px', padding: '0.75rem', border: '1px solid #E4E7EC' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.8125rem' }}>
-                    <span style={{ color: '#FFFFFF', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <UserCheck size={13} color="#18B86A" />
+                    <span style={{ color: '#101828', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <UserCheck size={13} color="#16A765" />
                       Behavioural Risk
                     </span>
-                    <span style={{ fontWeight: 700, color: '#FFFFFF' }}>{currentSession.behaviouralRiskScore}%</span>
+                    <span style={{ fontWeight: 700, color: '#101828' }}>{currentSession.behaviouralRiskScore}%</span>
                   </div>
-                  <div style={{ height: '5px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ height: '5px', backgroundColor: '#E4E7EC', borderRadius: '3px', overflow: 'hidden' }}>
                     <div
                       style={{
                         height: '100%',
                         width: `${currentSession.behaviouralRiskScore}%`,
                         backgroundColor:
                           currentSession.behaviouralRiskScore < 25
-                            ? '#18B86A'
+                            ? '#16A765'
                             : currentSession.behaviouralRiskScore < 60
                             ? '#F59E0B'
                             : '#EF4444'
@@ -301,15 +303,15 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                 </div>
 
                 {/* Environmental Stability */}
-                <div style={{ backgroundColor: '#0A1E54', borderRadius: '6px', padding: '0.75rem' }}>
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '8px', padding: '0.75rem', border: '1px solid #E4E7EC' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.8125rem' }}>
-                    <span style={{ color: '#FFFFFF', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Wifi size={13} color={currentSession.environmentalQualityScore < 50 ? '#F59E0B' : '#18B86A'} />
+                    <span style={{ color: '#101828', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Wifi size={13} color={currentSession.environmentalQualityScore < 50 ? '#F59E0B' : '#16A765'} />
                       Network Stability
                     </span>
-                    <span style={{ fontWeight: 700, color: '#FFFFFF' }}>{currentSession.environmentalQualityScore}%</span>
+                    <span style={{ fontWeight: 700, color: '#101828' }}>{currentSession.environmentalQualityScore}%</span>
                   </div>
-                  <div style={{ height: '5px', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ height: '5px', backgroundColor: '#E4E7EC', borderRadius: '3px', overflow: 'hidden' }}>
                     <div
                       style={{
                         height: '100%',
@@ -317,7 +319,7 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                         backgroundColor:
                           currentSession.environmentalQualityScore < 50
                             ? '#F59E0B'
-                            : '#18B86A'
+                            : '#16A765'
                       }}
                     />
                   </div>
@@ -325,8 +327,8 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
               </div>
 
               {/* Reviewer Action Verdict */}
-              <div style={{ marginTop: 'auto', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '0.85rem' }}>
-                <div style={{ fontSize: '0.75rem', color: '#18B86A', backgroundColor: 'rgba(24, 184, 106, 0.12)', padding: '0.45rem', borderRadius: '4px', marginBottom: '0.65rem', lineHeight: 1.35 }}>
+              <div style={{ marginTop: 'auto', borderTop: '1px solid #E4E7EC', paddingTop: '0.85rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#16A765', backgroundColor: '#E8F8EF', border: '1px solid rgba(22, 167, 101, 0.25)', padding: '0.45rem', borderRadius: '4px', marginBottom: '0.65rem', lineHeight: 1.35, fontWeight: 600 }}>
                   {verdicts[currentSession.id]}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -335,7 +337,7 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                     className="btn btn-outline-white btn-sm"
                     style={{ width: '100%', justifyContent: 'flex-start' }}
                   >
-                    <CheckCircle size={13} color="#18B86A" />
+                    <CheckCircle size={13} color="#16A765" />
                     <span>Dismiss as Environmental</span>
                   </button>
                   <button
@@ -346,7 +348,7 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                     className="btn btn-outline-white btn-sm"
                     style={{ width: '100%', justifyContent: 'flex-start' }}
                   >
-                    <FileCheck2 size={13} color="#79F2C0" />
+                    <FileCheck2 size={13} color="#16A765" />
                     <span>Request Statement</span>
                   </button>
                 </div>
@@ -354,10 +356,10 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
             </div>
 
             {/* Right: Timeline & Deep Inspector */}
-            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', backgroundColor: '#03102F' }}>
+            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', backgroundColor: '#FFFFFF' }}>
               {/* Category Filter Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '0.65rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#B8C4D9', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', borderBottom: '1px solid #E4E7EC', paddingBottom: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#475467', fontWeight: 600 }}>
                   <Filter size={13} />
                   <span>Filters:</span>
                 </div>
@@ -372,14 +374,15 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                       key={cat.id}
                       onClick={() => setActiveCategoryFilter(cat.id)}
                       style={{
-                        backgroundColor: activeCategoryFilter === cat.id ? '#18B86A' : 'rgba(10, 30, 84, 0.6)',
-                        color: activeCategoryFilter === cat.id ? '#FFFFFF' : '#B8C4D9',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: '3px',
+                        backgroundColor: activeCategoryFilter === cat.id ? '#16A765' : '#F7F9FC',
+                        color: activeCategoryFilter === cat.id ? '#FFFFFF' : '#475467',
+                        border: `1px solid ${activeCategoryFilter === cat.id ? '#16A765' : '#E4E7EC'}`,
+                        borderRadius: '4px',
                         padding: '0.25rem 0.55rem',
                         fontSize: '0.75rem',
                         fontWeight: 600,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
                       }}
                     >
                       {cat.label}
@@ -398,31 +401,32 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                       onClick={() => setSelectedEventId(event.id)}
                       style={{
                         padding: '0.75rem 0.9rem',
-                        borderRadius: '5px',
-                        backgroundColor: isSelected ? '#0A1E54' : 'rgba(10, 30, 84, 0.4)',
-                        border: `1px solid ${isSelected ? '#18B86A' : 'rgba(255, 255, 255, 0.08)'}`,
+                        borderRadius: '6px',
+                        backgroundColor: isSelected ? '#F7F9FC' : '#FFFFFF',
+                        border: `1px solid ${isSelected ? '#16A765' : '#E4E7EC'}`,
                         cursor: 'pointer',
                         display: 'grid',
                         gridTemplateColumns: '72px 1fr auto',
                         gap: '0.85rem',
-                        alignItems: 'center'
+                        alignItems: 'center',
+                        transition: 'all 0.15s ease'
                       }}
                     >
-                      <div className="font-mono" style={{ fontSize: '0.75rem', color: '#18B86A', fontWeight: 600 }}>
+                      <div className="font-mono" style={{ fontSize: '0.75rem', color: '#16A765', fontWeight: 600 }}>
                         {event.timestamp}
                       </div>
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: '#FFFFFF' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: '#101828' }}>
                             {event.title}
                           </span>
                           {event.isSuppressed && (
-                            <span style={{ fontSize: '0.625rem', fontWeight: 700, backgroundColor: 'rgba(24, 184, 106, 0.15)', color: '#18B86A', padding: '1px 5px', borderRadius: '3px' }}>
+                            <span style={{ fontSize: '0.625rem', fontWeight: 700, backgroundColor: '#E8F8EF', color: '#16A765', border: '1px solid rgba(22, 167, 101, 0.25)', padding: '1px 5px', borderRadius: '3px' }}>
                               SUPPRESSED
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#B8C4D9' }}>{event.description}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#475467' }}>{event.description}</div>
                       </div>
                       <span className={`badge ${event.category === 'environmental' ? 'badge-warning' : 'badge-green'}`} style={{ fontSize: '0.625rem' }}>
                         {event.category}
@@ -435,31 +439,31 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
               {/* Explainable Rationale Box */}
               <div
                 style={{
-                  backgroundColor: '#0A1E54',
-                  border: '1px solid rgba(24, 184, 106, 0.3)',
-                  borderRadius: '6px',
+                  backgroundColor: '#F7F9FC',
+                  border: '1px solid #E4E7EC',
+                  borderRadius: '8px',
                   padding: '1rem'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', fontWeight: 700, color: '#FFFFFF' }}>
-                    <Sparkles size={14} color="#18B86A" />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', fontWeight: 700, color: '#101828' }}>
+                    <Sparkles size={14} color="#16A765" />
                     <span>Signal Rationale: {activeEvent.title}</span>
                   </div>
-                  <span className="font-mono" style={{ fontSize: '0.6875rem', color: '#8696B2' }}>{activeEvent.id}</span>
+                  <span className="font-mono" style={{ fontSize: '0.6875rem', color: '#667085' }}>{activeEvent.id}</span>
                 </div>
 
                 {/* Metrics */}
                 <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.65rem' }}>
                   {activeEvent.metrics.map((m, i) => (
-                    <div key={i} style={{ backgroundColor: '#061744', padding: '0.35rem 0.65rem', borderRadius: '4px', fontSize: '0.75rem' }}>
-                      <span style={{ color: '#8696B2' }}>{m.label}: </span>
-                      <strong style={{ color: '#18B86A' }}>{m.value}</strong>
+                    <div key={i} style={{ backgroundColor: '#FFFFFF', border: '1px solid #E4E7EC', padding: '0.35rem 0.65rem', borderRadius: '4px', fontSize: '0.75rem' }}>
+                      <span style={{ color: '#667085' }}>{m.label}: </span>
+                      <strong style={{ color: '#16A765' }}>{m.value}</strong>
                     </div>
                   ))}
                 </div>
 
-                <p style={{ fontSize: '0.8125rem', color: '#B8C4D9', margin: 0, lineHeight: 1.5 }}>
+                <p style={{ fontSize: '0.8125rem', color: '#475467', margin: 0, lineHeight: 1.5 }}>
                   {activeEvent.aiRationale}
                 </p>
               </div>

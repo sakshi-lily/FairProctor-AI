@@ -32,7 +32,7 @@ export const AppealModal: React.FC<AppealModalProps> = ({ isOpen, session, onClo
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(3, 16, 47, 0.88)',
+          backgroundColor: 'rgba(16, 24, 40, 0.55)',
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
           display: 'flex',
@@ -49,13 +49,13 @@ export const AppealModal: React.FC<AppealModalProps> = ({ isOpen, session, onClo
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           transition={{ duration: 0.22 }}
           onClick={(e) => e.stopPropagation()}
-          className="card-navy"
+          className="card-white"
           style={{
             width: '100%',
             maxWidth: '640px',
-            backgroundColor: '#061744',
-            border: '1px solid rgba(24, 184, 106, 0.35)',
-            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E4E7EC',
+            boxShadow: '0 25px 60px rgba(16, 24, 40, 0.15)',
             overflow: 'hidden'
           }}
         >
@@ -63,20 +63,20 @@ export const AppealModal: React.FC<AppealModalProps> = ({ isOpen, session, onClo
           <div
             style={{
               padding: '1.25rem 1.5rem',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              borderBottom: '1px solid #E4E7EC',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: '#03102F'
+              backgroundColor: '#F7F9FC'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <ShieldCheck size={20} color="#18B86A" />
+              <ShieldCheck size={20} color="#16A765" />
               <div>
-                <h3 style={{ fontSize: '1.1rem', color: '#FFFFFF', margin: 0, fontWeight: 700 }}>
+                <h3 style={{ fontSize: '1.1rem', color: '#101828', margin: 0, fontWeight: 700 }}>
                   Candidate Due Process & Rebuttal Window
                 </h3>
-                <span style={{ fontSize: '0.75rem', color: '#B8C4D9' }}>
+                <span style={{ fontSize: '0.75rem', color: '#475467' }}>
                   Session: {session.id} · {session.candidateName}
                 </span>
               </div>
@@ -88,7 +88,7 @@ export const AppealModal: React.FC<AppealModalProps> = ({ isOpen, session, onClo
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#B8C4D9',
+                color: '#475467',
                 cursor: 'pointer',
                 padding: '0.25rem'
               }}
@@ -106,20 +106,20 @@ export const AppealModal: React.FC<AppealModalProps> = ({ isOpen, session, onClo
                     width: '54px',
                     height: '54px',
                     borderRadius: '50%',
-                    backgroundColor: 'rgba(24, 184, 106, 0.15)',
+                    backgroundColor: '#E8F8EF',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     margin: '0 auto 1.25rem auto',
-                    border: '1px solid rgba(24, 184, 106, 0.4)'
+                    border: '1px solid rgba(22, 167, 101, 0.3)'
                   }}
                 >
-                  <CheckCircle2 size={30} color="#18B86A" />
+                  <CheckCircle2 size={30} color="#16A765" />
                 </div>
-                <h4 style={{ fontSize: '1.3rem', color: '#FFFFFF', marginBottom: '0.5rem', fontWeight: 700 }}>
+                <h4 style={{ fontSize: '1.3rem', color: '#101828', marginBottom: '0.5rem', fontWeight: 700 }}>
                   Statement & Telemetry Logs Submitted
                 </h4>
-                <p style={{ fontSize: '0.9rem', color: '#B8C4D9', maxWidth: '460px', margin: '0 auto 1.5rem auto', lineHeight: 1.6 }}>
+                <p style={{ fontSize: '0.9rem', color: '#475467', maxWidth: '460px', margin: '0 auto 1.5rem auto', lineHeight: 1.6 }}>
                   Your statement, along with your ISP packet-loss audit report, has been appended to the reviewer queue.
                   Academic sanctions remain strictly paused pending human educator review.
                 </p>
@@ -131,16 +131,16 @@ export const AppealModal: React.FC<AppealModalProps> = ({ isOpen, session, onClo
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div
                   style={{
-                    backgroundColor: '#0A1E54',
+                    backgroundColor: '#F7F9FC',
                     padding: '1rem',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.08)'
+                    borderRadius: '8px',
+                    border: '1px solid #E4E7EC'
                   }}
                 >
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#18B86A', marginBottom: '0.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16A765', marginBottom: '0.25rem' }}>
                     REVIEWER INQUIRY NOTICE:
                   </div>
-                  <div style={{ fontSize: '0.875rem', color: '#EAF1F7', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: '0.875rem', color: '#101828', lineHeight: 1.5 }}>
                     {session.summaryRationale}
                   </div>
                 </div>
@@ -150,7 +150,7 @@ export const AppealModal: React.FC<AppealModalProps> = ({ isOpen, session, onClo
                     style={{
                       fontSize: '0.8125rem',
                       fontWeight: 600,
-                      color: '#FFFFFF',
+                      color: '#101828',
                       display: 'block',
                       marginBottom: '0.5rem'
                     }}
@@ -163,11 +163,11 @@ export const AppealModal: React.FC<AppealModalProps> = ({ isOpen, session, onClo
                     onChange={(e) => setStatement(e.target.value)}
                     style={{
                       width: '100%',
-                      backgroundColor: '#0A1E54',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E4E7EC',
                       borderRadius: '6px',
                       padding: '0.75rem',
-                      color: '#FFFFFF',
+                      color: '#101828',
                       fontSize: '0.875rem',
                       fontFamily: 'var(--font-sans)',
                       resize: 'vertical',
@@ -184,19 +184,19 @@ export const AppealModal: React.FC<AppealModalProps> = ({ isOpen, session, onClo
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '0.75rem 1rem',
-                    backgroundColor: '#0A1E54',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    backgroundColor: '#F7F9FC',
+                    borderRadius: '8px',
+                    border: '1px solid #E4E7EC',
                     cursor: 'pointer'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <Paperclip size={16} color={attachedLog ? '#18B86A' : '#8696B2'} />
+                    <Paperclip size={16} color={attachedLog ? '#16A765' : '#667085'} />
                     <div>
-                      <div style={{ fontSize: '0.8125rem', color: '#FFFFFF', fontWeight: 600 }}>
+                      <div style={{ fontSize: '0.8125rem', color: '#101828', fontWeight: 600 }}>
                         isp_telemetry_dump_rtt980ms.json
                       </div>
-                      <div style={{ fontSize: '0.6875rem', color: '#B8C4D9' }}>
+                      <div style={{ fontSize: '0.6875rem', color: '#475467' }}>
                         Local WebRTC socket diagnostic logs (Verified HMAC)
                       </div>
                     </div>

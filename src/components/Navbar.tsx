@@ -31,10 +31,11 @@ export const Navbar: React.FC = () => {
           right: 0,
           zIndex: 100,
           transition: 'all 0.25s ease',
-          backgroundColor: scrolled ? 'rgba(3, 16, 47, 0.96)' : 'rgba(6, 23, 68, 0.88)',
+          backgroundColor: scrolled ? 'rgba(255, 255, 255, 0.96)' : 'rgba(255, 255, 255, 0.92)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+          borderBottom: '1px solid #E4E7EC',
+          boxShadow: scrolled ? '0 1px 3px rgba(16, 24, 40, 0.05)' : 'none'
         }}
       >
         <div
@@ -54,7 +55,7 @@ export const Navbar: React.FC = () => {
               alignItems: 'center',
               gap: '0.65rem',
               textDecoration: 'none',
-              color: '#FFFFFF'
+              color: '#101828'
             }}
           >
             <div
@@ -62,28 +63,28 @@ export const Navbar: React.FC = () => {
                 width: '34px',
                 height: '34px',
                 borderRadius: '7px',
-                backgroundColor: '#0E2463',
-                border: '1px solid rgba(24, 184, 106, 0.4)',
+                backgroundColor: '#E8F8EF',
+                border: '1px solid rgba(22, 167, 101, 0.3)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
             >
-              <ShieldCheck size={19} color="#18B86A" />
+              <ShieldCheck size={19} color="#16A765" />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
-              <span style={{ fontWeight: 800, fontSize: '1.15rem', letterSpacing: '-0.025em', color: '#FFFFFF' }}>
+              <span style={{ fontWeight: 800, fontSize: '1.15rem', letterSpacing: '-0.025em', color: '#101828' }}>
                 FairProctor
               </span>
               <span
                 style={{
-                  backgroundColor: 'rgba(24, 184, 106, 0.15)',
-                  color: '#18B86A',
+                  backgroundColor: '#E8F8EF',
+                  color: '#16A765',
                   fontSize: '0.6875rem',
                   fontWeight: 700,
                   padding: '1px 5px',
                   borderRadius: '3px',
-                  border: '1px solid rgba(24, 184, 106, 0.35)'
+                  border: '1px solid rgba(22, 167, 101, 0.25)'
                 }}
               >
                 AI
@@ -106,15 +107,15 @@ export const Navbar: React.FC = () => {
                 key={link.label}
                 href={link.href}
                 style={{
-                  color: '#B8C4D9',
+                  color: '#475467',
                   textDecoration: 'none',
                   fontSize: '0.875rem',
-                  fontWeight: 500,
+                  fontWeight: 600,
                   whiteSpace: 'nowrap',
                   transition: 'color 0.15s ease'
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#FFFFFF')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#B8C4D9')}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#101828')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#475467')}
               >
                 {link.label}
               </a>
@@ -146,9 +147,9 @@ export const Navbar: React.FC = () => {
               width: '38px',
               height: '38px',
               borderRadius: '6px',
-              backgroundColor: '#0E2463',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              color: '#FFFFFF',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E4E7EC',
+              color: '#101828',
               cursor: 'pointer'
             }}
             className="mobile-burger"
@@ -171,11 +172,11 @@ export const Navbar: React.FC = () => {
               top: '68px',
               left: 0,
               right: 0,
-              backgroundColor: '#03102F',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+              backgroundColor: '#FFFFFF',
+              borderBottom: '1px solid #E4E7EC',
               padding: '1.25rem 1.5rem',
               zIndex: 99,
-              boxShadow: '0 16px 36px rgba(0,0,0,0.8)'
+              boxShadow: '0 16px 36px rgba(16, 24, 40, 0.08)'
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -185,7 +186,7 @@ export const Navbar: React.FC = () => {
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
                   style={{
-                    color: '#FFFFFF',
+                    color: '#101828',
                     textDecoration: 'none',
                     fontSize: '1rem',
                     fontWeight: 600,

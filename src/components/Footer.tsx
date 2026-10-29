@@ -10,12 +10,13 @@ export const Footer: React.FC<FooterProps> = ({ onExploreDemo }) => {
     <>
       {/* Section G: Closing CTA */}
       <section
+        className="section-alt"
         style={{
           position: 'relative',
           padding: '80px 0',
-          backgroundColor: '#03102F',
+          backgroundColor: '#F7F9FC',
           textAlign: 'center',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+          borderTop: '1px solid #E4E7EC'
         }}
       >
         <div className="container">
@@ -26,7 +27,7 @@ export const Footer: React.FC<FooterProps> = ({ onExploreDemo }) => {
               margin: '0 auto 1rem auto',
               lineHeight: 1.2,
               letterSpacing: '-0.03em',
-              color: '#FFFFFF'
+              color: '#101828'
             }}
           >
             Fair assessments start with better evidence.
@@ -35,7 +36,7 @@ export const Footer: React.FC<FooterProps> = ({ onExploreDemo }) => {
           <p
             style={{
               fontSize: '1.05rem',
-              color: '#B8C4D9',
+              color: '#475467',
               maxWidth: '560px',
               margin: '0 auto 2rem auto',
               lineHeight: 1.6
@@ -54,8 +55,8 @@ export const Footer: React.FC<FooterProps> = ({ onExploreDemo }) => {
       {/* Compact Enterprise Footer */}
       <footer
         style={{
-          backgroundColor: '#061744',
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          backgroundColor: '#FFFFFF',
+          borderTop: '1px solid #E4E7EC',
           padding: '2rem 0'
         }}
       >
@@ -75,37 +76,38 @@ export const Footer: React.FC<FooterProps> = ({ onExploreDemo }) => {
                 style={{
                   width: '28px',
                   height: '28px',
-                  borderRadius: '5px',
-                  backgroundColor: '#0E2463',
+                  borderRadius: '6px',
+                  backgroundColor: '#E8F8EF',
+                  border: '1px solid rgba(22, 167, 101, 0.25)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
               >
-                <ShieldCheck size={16} color="#18B86A" />
+                <ShieldCheck size={16} color="#16A765" />
               </div>
-              <span style={{ fontWeight: 800, fontSize: '1rem', color: '#FFFFFF' }}>
-                FairProctor <span style={{ color: '#18B86A' }}>AI</span>
+              <span style={{ fontWeight: 800, fontSize: '1rem', color: '#101828' }}>
+                FairProctor <span style={{ color: '#16A765' }}>AI</span>
               </span>
-              <span style={{ fontSize: '0.75rem', color: '#8696B2', marginLeft: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', color: '#667085', marginLeft: '0.5rem' }}>
                 · IM-102 Hackathon Prototype
               </span>
             </div>
 
             {/* Links */}
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '0.8125rem' }}>
-              <a href="#overview" style={{ color: '#B8C4D9', textDecoration: 'none' }}>Platform</a>
-              <a href="#workflow" style={{ color: '#B8C4D9', textDecoration: 'none' }}>How It Works</a>
-              <a href="#features" style={{ color: '#B8C4D9', textDecoration: 'none' }}>Features</a>
-              <a href="#fairness" style={{ color: '#B8C4D9', textDecoration: 'none' }}>Privacy</a>
-              <a href="mailto:contact@fairproctor.ai" style={{ color: '#18B86A', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <a href="#overview" style={{ color: '#475467', textDecoration: 'none', fontWeight: 500 }}>Platform</a>
+              <a href="#workflow" style={{ color: '#475467', textDecoration: 'none', fontWeight: 500 }}>How It Works</a>
+              <a href="#features" style={{ color: '#475467', textDecoration: 'none', fontWeight: 500 }}>Features</a>
+              <a href="#fairness" style={{ color: '#475467', textDecoration: 'none', fontWeight: 500 }}>Privacy</a>
+              <a href="mailto:contact@fairproctor.ai" style={{ color: '#16A765', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}>
                 <Mail size={12} />
                 Contact
               </a>
             </div>
 
             {/* Copyright */}
-            <div style={{ fontSize: '0.75rem', color: '#8696B2' }}>
+            <div style={{ fontSize: '0.75rem', color: '#667085' }}>
               © 2026 FairProctor AI. Independent prototype.
             </div>
           </div>

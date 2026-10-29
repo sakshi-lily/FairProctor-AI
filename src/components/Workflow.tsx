@@ -45,11 +45,12 @@ export const Workflow: React.FC = () => {
   return (
     <section
       id="workflow"
+      className="section-alt"
       style={{
         padding: '85px 0',
-        backgroundColor: '#061744',
+        backgroundColor: '#F7F9FC',
         position: 'relative',
-        borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+        borderTop: '1px solid #E4E7EC'
       }}
     >
       <div className="container">
@@ -60,12 +61,12 @@ export const Workflow: React.FC = () => {
               fontSize: 'clamp(1.9rem, 3.2vw, 2.75rem)',
               marginBottom: '0.65rem',
               letterSpacing: '-0.03em',
-              color: '#FFFFFF'
+              color: '#101828'
             }}
           >
             How it works.
           </h2>
-          <p style={{ fontSize: '1rem', color: '#B8C4D9', lineHeight: 1.55, margin: 0 }}>
+          <p style={{ fontSize: '1rem', color: '#475467', lineHeight: 1.55, margin: 0 }}>
             An explainable five-stage assessment security pipeline from client telemetry ingest to candidate appeal.
           </p>
         </div>
@@ -88,15 +89,14 @@ export const Workflow: React.FC = () => {
                 left: '10%',
                 right: '10%',
                 height: '2px',
-                backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                backgroundColor: '#E4E7EC',
                 zIndex: 0
               }}
             >
               <motion.div
                 style={{
                   height: '100%',
-                  backgroundColor: '#18B86A',
-                  boxShadow: '0 0 10px #18B86A'
+                  backgroundColor: '#16A765'
                 }}
                 animate={{ width: `${(activeStepIndex / 4) * 100}%` }}
                 transition={{ duration: 0.35, ease: 'easeInOut' }}
@@ -129,28 +129,28 @@ export const Workflow: React.FC = () => {
                       width: '44px',
                       height: '44px',
                       borderRadius: '50%',
-                      backgroundColor: isActive ? '#18B86A' : isPast ? '#0E2463' : '#03102F',
-                      border: `2px solid ${isActive ? '#18B86A' : isPast ? '#18B86A' : 'rgba(255,255,255,0.2)'}`,
+                      backgroundColor: isActive ? '#16A765' : isPast ? '#E8F8EF' : '#FFFFFF',
+                      border: `2px solid ${isActive ? '#16A765' : isPast ? '#16A765' : '#E4E7EC'}`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: isActive ? '#FFFFFF' : '#B8C4D9',
+                      color: isActive ? '#FFFFFF' : isPast ? '#16A765' : '#667085',
                       fontWeight: 800,
                       fontFamily: 'var(--font-mono)',
                       fontSize: '0.8125rem',
-                      boxShadow: isActive ? '0 0 14px rgba(24, 184, 106, 0.4)' : 'none',
+                      boxShadow: isActive ? '0 0 12px rgba(22, 167, 101, 0.35)' : 'none',
                       transition: 'all 0.2s ease',
                       marginBottom: '0.65rem'
                     }}
                   >
-                    {isPast ? <Check size={16} color="#18B86A" /> : item.step}
+                    {isPast ? <Check size={16} color="#16A765" /> : item.step}
                   </div>
 
                   <span
                     style={{
                       fontSize: '0.75rem',
                       fontWeight: 700,
-                      color: isActive ? '#FFFFFF' : isPast ? '#EAF1F7' : '#B8C4D9',
+                      color: isActive ? '#101828' : isPast ? '#16A765' : '#667085',
                       textAlign: 'center',
                       lineHeight: 1.3,
                       maxWidth: '140px'
@@ -174,9 +174,9 @@ export const Workflow: React.FC = () => {
                 onClick={() => setActiveStepIndex(idx)}
                 style={{
                   padding: '0.75rem 1rem',
-                  borderRadius: '5px',
-                  backgroundColor: isActive ? '#0E2463' : 'rgba(3, 16, 47, 0.6)',
-                  border: `1px solid ${isActive ? '#18B86A' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: '6px',
+                  backgroundColor: isActive ? '#E8F8EF' : '#FFFFFF',
+                  border: `1px solid ${isActive ? '#16A765' : '#E4E7EC'}`,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.75rem',
@@ -188,8 +188,8 @@ export const Workflow: React.FC = () => {
                     width: '30px',
                     height: '30px',
                     borderRadius: '50%',
-                    backgroundColor: isActive ? '#18B86A' : '#03102F',
-                    color: '#FFFFFF',
+                    backgroundColor: isActive ? '#16A765' : '#F7F9FC',
+                    color: isActive ? '#FFFFFF' : '#667085',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -201,7 +201,7 @@ export const Workflow: React.FC = () => {
                 >
                   {item.step}
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: isActive ? '#18B86A' : '#FFFFFF' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: isActive ? '#16A765' : '#101828' }}>
                   {item.title}
                 </div>
               </div>
@@ -217,26 +217,28 @@ export const Workflow: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="card-navy"
+            className="card-white"
             style={{
               padding: '1.75rem 2rem',
-              border: '1px solid rgba(24, 184, 106, 0.3)'
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E4E7EC',
+              boxShadow: '0 8px 24px rgba(16, 24, 40, 0.05)'
             }}
           >
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', alignItems: 'center' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                  <ActiveStepIcon size={16} color="#18B86A" />
-                  <span className="font-mono" style={{ fontSize: '0.875rem', fontWeight: 800, color: '#18B86A' }}>
+                  <ActiveStepIcon size={16} color="#16A765" />
+                  <span className="font-mono" style={{ fontSize: '0.875rem', fontWeight: 800, color: '#16A765' }}>
                     PHASE {currentStep.step}
                   </span>
                 </div>
 
-                <h3 style={{ fontSize: '1.35rem', color: '#FFFFFF', marginBottom: '0.65rem', fontWeight: 700 }}>
+                <h3 style={{ fontSize: '1.35rem', color: '#101828', marginBottom: '0.65rem', fontWeight: 700 }}>
                   {currentStep.title}
                 </h3>
 
-                <p style={{ fontSize: '0.9375rem', color: '#B8C4D9', lineHeight: 1.6, margin: 0 }}>
+                <p style={{ fontSize: '0.9375rem', color: '#475467', lineHeight: 1.6, margin: 0 }}>
                   {currentStep.shortDesc}
                 </p>
               </div>
@@ -244,19 +246,19 @@ export const Workflow: React.FC = () => {
               {/* Commitment Callout */}
               <div
                 style={{
-                  backgroundColor: '#03102F',
-                  border: '1px solid rgba(24, 184, 106, 0.25)',
-                  borderRadius: '6px',
+                  backgroundColor: '#F7F9FC',
+                  border: '1px solid #E4E7EC',
+                  borderRadius: '8px',
                   padding: '1.25rem'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
-                  <ShieldCheck size={16} color="#18B86A" />
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#18B86A' }}>
+                  <ShieldCheck size={16} color="#16A765" />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16A765' }}>
                     FAIRNESS COMMITMENT
                   </span>
                 </div>
-                <p style={{ fontSize: '0.875rem', color: '#FFFFFF', lineHeight: 1.55, margin: 0 }}>
+                <p style={{ fontSize: '0.875rem', color: '#101828', lineHeight: 1.55, margin: 0 }}>
                   "{currentStep.commitment}"
                 </p>
 

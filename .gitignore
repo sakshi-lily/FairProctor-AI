@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Pytest
+.pytest_cache/
+
+# Node dependencies
+node_modules/
+frontend/node_modules/
+
+# Frontend build
+frontend/dist/

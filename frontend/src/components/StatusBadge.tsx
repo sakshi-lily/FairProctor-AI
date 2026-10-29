@@ -8,36 +8,36 @@ interface Props {
 }
 
 export const StatusBadge: React.FC<Props> = ({ status, size = 'md' }) => {
-  let color = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700';
+  let color = 'bg-slate-100 text-slate-700 border-slate-200';
   let Icon = Clock;
-  let text = 'Pending Review';
+  let text = 'Pending';
 
   switch (status) {
     case 'NO_CONCERN':
-      color = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
+      color = 'bg-emerald-50 text-emerald-800 border-emerald-200';
       Icon = CheckCheck;
-      text = 'No Concern Identified';
+      text = 'No Concern';
       break;
     case 'REQUIRES_INVESTIGATION':
-      color = 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300 border-sky-300 dark:border-sky-800';
+      color = 'bg-sky-50 text-sky-800 border-sky-200';
       Icon = HelpCircle;
-      text = 'Requires Investigation';
+      text = 'Investigation';
       break;
     case 'CONFIRMED_VIOLATION':
-      color = 'bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-300 border-red-400 dark:border-red-800';
+      color = 'bg-rose-50 text-rose-800 border-rose-200';
       Icon = ShieldAlert;
-      text = 'Confirmed Policy Violation';
+      text = 'Violation';
       break;
     case 'DISMISSED':
-      color = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border-slate-300 dark:border-slate-750';
+      color = 'bg-slate-100 text-slate-600 border-slate-200';
       Icon = XCircle;
       text = 'Dismissed';
       break;
     case 'PENDING_REVIEW':
     default:
-      color = 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 dark:border-amber-800';
+      color = 'bg-amber-50 text-amber-800 border-amber-200';
       Icon = Clock;
-      text = 'Awaiting Review';
+      text = 'Pending';
       break;
   }
 

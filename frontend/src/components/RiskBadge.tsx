@@ -11,18 +11,18 @@ interface Props {
 export const RiskBadge: React.FC<Props> = ({ priority, showHeuristicNote = false, size = 'md' }) => {
   const norm = String(priority).toUpperCase();
 
-  let colorClasses = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
+  let colorClasses = 'bg-emerald-50 text-emerald-800 border-emerald-200';
   let Icon = CheckCircle2;
-  let label = 'Low Priority';
+  let label = 'Low';
 
   if (norm === 'HIGH') {
-    colorClasses = 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border-rose-300 dark:border-rose-800';
+    colorClasses = 'bg-rose-50 text-rose-800 border-rose-200';
     Icon = AlertCircle;
-    label = 'High Priority';
+    label = 'High';
   } else if (norm === 'MEDIUM') {
-    colorClasses = 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border-amber-300 dark:border-amber-800';
+    colorClasses = 'bg-amber-50 text-amber-800 border-amber-200';
     Icon = AlertTriangle;
-    label = 'Medium Priority';
+    label = 'Medium';
   }
 
   const sizeClasses = size === 'sm' ? 'px-2 py-0.5 text-xs' : size === 'lg' ? 'px-3 py-1.5 text-sm' : 'px-2.5 py-1 text-xs';
@@ -31,14 +31,13 @@ export const RiskBadge: React.FC<Props> = ({ priority, showHeuristicNote = false
     <div className="inline-flex flex-col">
       <span
         className={`inline-flex items-center gap-1.5 font-medium rounded-full border ${colorClasses} ${sizeClasses}`}
-        title="Provisional review-priority heuristic; not an empirical probability of cheating"
       >
-        <Icon className={size === 'sm' ? 'w-3 h-3' : 'w-4 h-4'} />
+        <Icon className={size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
         <span>{label}</span>
       </span>
       {showHeuristicNote && (
-        <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-          Review-Priority Heuristic
+        <span className="text-[10px] text-slate-500 mt-0.5">
+          Priority Score
         </span>
       )}
     </div>

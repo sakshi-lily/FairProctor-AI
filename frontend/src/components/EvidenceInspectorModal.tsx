@@ -140,5 +140,6 @@ export const EvidenceInspectorModal: React.FC<Props> = ({ evidence, onClose }) =
           </button>
         </div>
       </div>
+    </div>
   );
 };

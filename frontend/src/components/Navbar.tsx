@@ -1,38 +1,19 @@
 import React from 'react';
-import { Shield, Sun, Moon, UserCheck, GraduationCap, LayoutDashboard, Globe } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
-import { useProctorRole } from '../context/ProctorRoleContext';
-import { ReviewerRole } from '../types/proctoring';
+import { Shield, GraduationCap, LayoutDashboard, Globe } from 'lucide-react';
 
 interface Props {
-  isBackendHealthy: boolean;
+  isBackendHealthy?: boolean;
   modelVersion?: string;
-  onRefreshHealth: () => void;
+  onRefreshHealth?: () => void;
   appMode: 'landing' | 'reviewer' | 'candidate';
   onToggleAppMode: (mode: 'landing' | 'reviewer' | 'candidate') => void;
 }
 
 export const Navbar: React.FC<Props> = ({
-  isBackendHealthy,
   modelVersion = '2.0.0',
-  onRefreshHealth,
   appMode,
   onToggleAppMode,
 }) => {
-  const { theme, toggleTheme } = useTheme();
-  const { activeRole, setActiveRole, setReviewerId, isLeadProctor } = useProctorRole();
-
-  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const role = e.target.value as ReviewerRole;
-    setActiveRole(role);
-    if (role === 'lead_proctor') {
-      setReviewerId('rev_lead_01');
-    } else if (role === 'auditor') {
-      setReviewerId('rev_auditor_02');
-    } else {
-      setReviewerId('rev_staff_409');
-    }
-  };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md transition-colors">
@@ -49,19 +30,19 @@ export const Navbar: React.FC<Props> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+              <h1 className="text-base font-bold tracking-tight text-slate-900 leading-tight">
                 FairProctor-AI
               </h1>
-              <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300 rounded border border-teal-300 dark:border-teal-800">
+              <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-teal-50 text-teal-800 rounded border border-teal-200">
                 v{modelVersion}
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500">
               {appMode === 'candidate'
-                ? 'Candidate Examination Portal'
+                ? 'Candidate Portal'
                 : appMode === 'landing'
-                ? 'Enterprise Landing Page'
-                : 'Examination Integrity & Fairness Reviewer'}
+                ? 'Enterprise Overview'
+                : 'Reviewer Dashboard'}
             </p>
           </div>
         </div>
@@ -103,54 +84,6 @@ export const Navbar: React.FC<Props> = ({
             <GraduationCap className="w-3.5 h-3.5" />
             <span>Candidate</span>
           </button>
-        </div>
-
-        {/* Status, Role Selector, Theme */}
-        <div className="flex items-center gap-3">
-          
-          {/* Backend Status indicator */}
-          <button
-            onClick={onRefreshHealth}
-            title="Click to check backend connectivity (FastAPI :8000)"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all"
-          >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isBackendHealthy ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
-              }`}
-            />
-            <span className="text-slate-700 dark:text-slate-300 hidden sm:inline">
-              {isBackendHealthy ? 'FastAPI Online' : 'Backend Offline'}
-            </span>
-          </button>
-
-          {/* Active Reviewer Role Switcher (Visible in reviewer mode) */}
-          {appMode === 'reviewer' && (
-            <div className="hidden lg:flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs">
-              <UserCheck className="w-3.5 h-3.5 text-teal-600" />
-              <span className="text-slate-500">Role:</span>
-              <select
-                value={activeRole}
-                onChange={handleRoleChange}
-                className="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer text-xs"
-              >
-                <option value="lead_proctor" className="bg-white">
-                  Lead Proctor
-                </option>
-                <option value="reviewer" className="bg-white">
-                  Reviewer
-                </option>
-                <option value="auditor" className="bg-white">
-                  Auditor
-                </option>
-              </select>
-              {isLeadProctor && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold">
-                  Auth
-                </span>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </header>

@@ -31,6 +31,7 @@ import {
   AlertCircle,
   Radio,
   Sliders,
+  Camera,
 } from 'lucide-react';
 import { SYNTHETIC_EXAM_QUESTIONS } from './examQuestions';
 import {
@@ -51,6 +52,12 @@ import {
   CreatePairingResponse,
   PairingStatusResponse,
 } from '../types/proctoring';
+
+export interface CameraErrorInfo {
+  type: 'NotAllowedError' | 'NotFoundError' | 'NotReadableError' | 'OverconstrainedError' | 'InsecureContext' | 'Unknown';
+  message: string;
+  guidance: string;
+}
 
 type WizardScreen =
   | 'welcome'
@@ -121,7 +128,10 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
 
   // Desktop Media Streams & Permissions
   const [desktopMediaStream, setDesktopMediaStream] = useState<MediaStream | null>(null);
+  const desktopMediaStreamRef = useRef<MediaStream | null>(null);
   const [cameraPermissionState, setCameraPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+  const [cameraErrorInfo, setCameraErrorInfo] = useState<CameraErrorInfo | null>(null);
+  const [isRequestingMedia, setIsRequestingMedia] = useState<boolean>(false);
   const [micPermissionState, setMicPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [micAudioLevel, setMicAudioLevel] = useState<number>(0);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
@@ -140,12 +150,20 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
   const [secondsRemaining, setSecondsRemaining] = useState<number>(300);
   const [isExamRunning, setIsExamRunning] = useState<boolean>(false);
   const [startTimeMs, setStartTimeMs] = useState<number | null>(null);
+  const [candidateNotes, setCandidateNotes] = useState<Record<number, string>>({});
 
   // Restricted Mode / Fullscreen Interruption State
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [warningModalOpen, setWarningModalOpen] = useState<boolean>(false);
   const [warningType, setWarningType] = useState<'fullscreen_exit' | 'tab_switch' | null>(null);
   const [warningCount, setWarningCount] = useState<number>(0);
+  const lastInterruptionTimeRef = useRef<number>(0);
+  const isInitializingCameraRef = useRef<boolean>(false);
+
+  // Keyboard controls, Consent & Authorized Snapshot
+  const [shortcutNotice, setShortcutNotice] = useState<string | null>(null);
+  const [hasProctoringConsent, setHasProctoringConsent] = useState<boolean>(true);
+  const [authorizedSnapshot, setAuthorizedSnapshot] = useState<{ timestamp: string; dataUrl: string } | null>(null);
 
   // Simulated conditions state
   const [simulatedBackgroundPerson, setSimulatedBackgroundPerson] = useState<boolean>(false);
@@ -295,22 +313,212 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     };
   }, [currentScreen, activeSession]);
 
-  // Request Desktop Camera & Microphone Permissions (Standard getUserMedia)
-  const handleRequestDesktopMedia = async () => {
+  // Check if a MediaStream has active, live video tracks
+  const isStreamActive = (stream: MediaStream | null): boolean => {
+    if (!stream || !stream.active) return false;
+    const videoTracks = stream.getVideoTracks();
+    return videoTracks.length > 0 && videoTracks.some((t) => t.readyState === 'live');
+  };
+
+  // Attach stream to video DOM element safely with muted property and play() Promise handling
+  const attachStreamToVideo = (videoEl: HTMLVideoElement | null, stream: MediaStream | null) => {
+    if (!videoEl || !stream) return;
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({
+      if (videoEl.srcObject !== stream) {
+        videoEl.srcObject = stream;
+      }
+      videoEl.muted = true;
+      videoEl.playsInline = true;
+      const playPromise = videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          // Benign autoplay rejection if element not yet interacted with
+          console.warn('Video element play() deferred:', err);
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to assign srcObject to video:', e);
+    }
+  };
+
+  // Comprehensive Camera & Mic Initialization with Diagnostics, Retry & Fallbacks
+  const initializeCamera = async (forceRestart: boolean = false): Promise<MediaStream | null> => {
+    // Prevent duplicate concurrent initialization
+    if (isInitializingCameraRef.current) {
+      return desktopMediaStreamRef.current;
+    }
+
+    // Reuse existing active stream if healthy and no forced restart requested
+    if (!forceRestart && desktopMediaStreamRef.current && isStreamActive(desktopMediaStreamRef.current)) {
+      setCameraPermissionState('granted');
+      return desktopMediaStreamRef.current;
+    }
+
+    isInitializingCameraRef.current = true;
+    setIsRequestingMedia(true);
+    setCameraErrorInfo(null);
+
+    // Stop prior tracks before requesting a fresh stream to prevent camera-in-use locks
+    if (desktopMediaStreamRef.current) {
+      desktopMediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      desktopMediaStreamRef.current = null;
+    }
+    setDesktopMediaStream(null);
+
+    // Check Secure Context requirement (HTTPS or localhost)
+    const isLocalhost =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '[::1]';
+    if (!window.isSecureContext && !isLocalhost) {
+      const errInfo: CameraErrorInfo = {
+        type: 'InsecureContext',
+        message: 'Camera requires a secure HTTPS context.',
+        guidance: 'Browsers block media device access over unencrypted HTTP. Please connect via HTTPS or localhost.',
+      };
+      setCameraErrorInfo(errInfo);
+      setCameraPermissionState('denied');
+      setIsRequestingMedia(false);
+      isInitializingCameraRef.current = false;
+      return null;
+    }
+
+    // Check mediaDevices support
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const errInfo: CameraErrorInfo = {
+        type: 'NotFoundError',
+        message: 'WebRTC media devices API is unsupported in this browser.',
+        guidance: 'Please update your browser to a modern version supporting navigator.mediaDevices.',
+      };
+      setCameraErrorInfo(errInfo);
+      setCameraPermissionState('denied');
+      setIsRequestingMedia(false);
+      isInitializingCameraRef.current = false;
+      return null;
+    }
+
+    let stream: MediaStream | null = null;
+
+    // Attempt 1: Combined video + audio with optimal constraints
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user',
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+      setMicPermissionState('granted');
+    } catch (err1: any) {
+      // Attempt 2: Basic video + audio
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true,
         });
-        setDesktopMediaStream(stream);
-        setCameraPermissionState('granted');
         setMicPermissionState('granted');
+      } catch (err2: any) {
+        // Attempt 3: Video-only fallback if microphone is blocked or missing
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+          setMicPermissionState('denied');
+        } catch (err3: any) {
+          const primaryErr = err3 || err2 || err1;
+          const errorName = primaryErr?.name || 'UnknownError';
+          let errInfo: CameraErrorInfo;
 
-        // Setup Web Audio Analyser for microphone meter
+          if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
+            errInfo = {
+              type: 'NotAllowedError',
+              message: 'Camera permission was denied or dismissed.',
+              guidance: 'Click the camera/lock icon in your browser address bar to allow camera access, then click "Retry Camera".',
+            };
+          } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
+            errInfo = {
+              type: 'NotFoundError',
+              message: 'No video input hardware detected.',
+              guidance: 'Ensure your webcam is connected and recognized by your operating system, then click "Retry Camera".',
+            };
+          } else if (errorName === 'NotReadableError' || errorName === 'TrackStartError') {
+            errInfo = {
+              type: 'NotReadableError',
+              message: 'Camera is busy or in use by another application.',
+              guidance: 'Close any application currently using your webcam (Zoom, Teams, FaceTime, or other browser tabs), then click "Retry Camera".',
+            };
+          } else if (errorName === 'OverconstrainedError' || errorName === 'ConstraintNotSatisfiedError') {
+            errInfo = {
+              type: 'OverconstrainedError',
+              message: 'Camera could not satisfy requested video constraints.',
+              guidance: 'Default video resolution could not be fulfilled. Fallback to standard resolution will be attempted on retry.',
+            };
+          } else {
+            errInfo = {
+              type: 'Unknown',
+              message: primaryErr?.message || 'Unable to start camera stream.',
+              guidance: 'Please check browser device permissions and click "Retry Camera", or proceed under Policy IM-102 limited-evidence safeguards.',
+            };
+          }
+
+          setCameraErrorInfo(errInfo);
+          setCameraPermissionState('denied');
+          setIsRequestingMedia(false);
+          isInitializingCameraRef.current = false;
+
+          if (activeSession) {
+            recordCandidateEvent(activeSession.session_id, {
+              event_type: 'CAMERA_UNAVAILABLE',
+              source: 'browser',
+              metadata: {
+                reason: errInfo.type,
+                message: errInfo.message,
+                client_timestamp: new Date().toISOString(),
+                policy_note: 'IM-102 non-penalizing technical adversity',
+              },
+              is_simulated: false,
+            });
+          }
+          return null;
+        }
+      }
+    }
+
+    if (stream) {
+      desktopMediaStreamRef.current = stream;
+      setDesktopMediaStream(stream);
+      setCameraPermissionState('granted');
+      setIsRequestingMedia(false);
+      setCameraErrorInfo(null);
+      isInitializingCameraRef.current = false;
+
+      // Handle track unexpected termination (hardware disconnect or OS revocation)
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.onended = () => {
+          console.warn('Camera video track ended unexpectedly');
+          setCameraPermissionState('denied');
+          setCameraErrorInfo({
+            type: 'NotReadableError',
+            message: 'Camera stream disconnected or was stopped by the operating system.',
+            guidance: 'Click "Retry Camera" to re-establish your video feed.',
+          });
+        };
+      }
+
+      // Setup Web Audio Analyser for microphone meter if audio track is active
+      if (stream.getAudioTracks().length > 0) {
         try {
           const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioCtx) {
+            if (audioContextRef.current) {
+              audioContextRef.current.close().catch(() => {});
+            }
             const ctx = new AudioCtx();
             audioContextRef.current = ctx;
             const source = ctx.createMediaStreamSource(stream);
@@ -336,35 +544,27 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         } catch {
           // Audio analyzer is optional enhancement
         }
+      }
 
-        if (activeSession) {
-          recordCandidateEvent(activeSession.session_id, {
-            event_type: 'CAMERA_PERMISSION_GRANTED',
-            source: 'browser',
-            is_simulated: false,
-          });
-          recordCandidateEvent(activeSession.session_id, {
-            event_type: 'MICROPHONE_PERMISSION_GRANTED',
-            source: 'browser',
-            is_simulated: false,
-          });
-        }
-      } else {
-        setCameraPermissionState('denied');
-        setMicPermissionState('denied');
+      if (activeSession) {
+        recordCandidateEvent(activeSession.session_id, {
+          event_type: 'CAMERA_PERMISSION_GRANTED',
+          source: 'browser',
+          is_simulated: false,
+        });
       }
-    } catch {
-      // Graceful fallback to video-only if mic unavailable, or limited-evidence mode
-      try {
-        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        setDesktopMediaStream(videoStream);
-        setCameraPermissionState('granted');
-        setMicPermissionState('denied');
-      } catch {
-        setCameraPermissionState('denied');
-        setMicPermissionState('denied');
-      }
+
+      return stream;
     }
+
+    setIsRequestingMedia(false);
+    isInitializingCameraRef.current = false;
+    return null;
+  };
+
+  // User-facing camera permission trigger on Screen 4
+  const handleRequestDesktopMedia = async () => {
+    await initializeCamera(true);
   };
 
   // Stop Desktop Media tracks safely
@@ -375,26 +575,61 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => {});
     }
-    if (desktopMediaStream) {
-      desktopMediaStream.getTracks().forEach((track) => track.stop());
-      setDesktopMediaStream(null);
+    if (desktopMediaStreamRef.current) {
+      desktopMediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      desktopMediaStreamRef.current = null;
     }
+    setDesktopMediaStream(null);
     setCameraPermissionState('denied');
     setMicPermissionState('denied');
     setMicAudioLevel(0);
   };
 
-  // Attach stream to video preview elements
+  // Teardown tracks when CandidatePortal unmounts
   useEffect(() => {
-    if (desktopMediaStream) {
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+      if (desktopMediaStreamRef.current) {
+        desktopMediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        desktopMediaStreamRef.current = null;
+      }
+    };
+  }, []);
+
+  // Ensure camera stream is attached to visible video elements whenever available
+  useEffect(() => {
+    if (desktopMediaStream && isStreamActive(desktopMediaStream)) {
       if (videoPreviewRef.current) {
-        videoPreviewRef.current.srcObject = desktopMediaStream;
+        attachStreamToVideo(videoPreviewRef.current, desktopMediaStream);
       }
       if (examVideoRef.current) {
-        examVideoRef.current.srcObject = desktopMediaStream;
+        attachStreamToVideo(examVideoRef.current, desktopMediaStream);
       }
     }
   }, [desktopMediaStream, currentScreen]);
+
+  // Auto-initialize camera if entering active_exam directly or on reload
+  useEffect(() => {
+    if (currentScreen === 'active_exam') {
+      if (!desktopMediaStreamRef.current || !isStreamActive(desktopMediaStreamRef.current)) {
+        initializeCamera().catch(() => {});
+      }
+    }
+  }, [currentScreen]);
+
+  // Auto-dismiss keyboard shortcut notice after 5 seconds
+  useEffect(() => {
+    if (!shortcutNotice) return;
+    const timer = setTimeout(() => {
+      setShortcutNotice(null);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [shortcutNotice]);
 
   // Measure Real Network Latency to backend
   const handleTestNetwork = async () => {
@@ -404,6 +639,45 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     const t1 = performance.now();
     setPingMs(Math.round(t1 - t0));
     setIsMeasuringNetwork(false);
+  };
+
+  // Explicit Authorized Workflow: Capture Verification Snapshot under Candidate Consent
+  const handleCaptureAuthorizedSnapshot = async () => {
+    if (!examVideoRef.current || !desktopMediaStream || !isStreamActive(desktopMediaStream)) {
+      setShortcutNotice('Cannot capture verification snapshot: camera stream is not active.');
+      return;
+    }
+    try {
+      const video = examVideoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setAuthorizedSnapshot({
+          timestamp: new Date().toLocaleTimeString(),
+          dataUrl,
+        });
+        setStatusNotice('Authorized proctoring snapshot captured with candidate consent (stored locally per Policy IM-102).');
+        if (activeSession) {
+          await recordCandidateEvent(activeSession.session_id, {
+            event_type: 'ENVIRONMENTAL_OBSERVATION',
+            source: 'candidate',
+            metadata: {
+              type: 'AUTHORIZED_PROCTORING_SNAPSHOT',
+              timestamp: new Date().toISOString(),
+              policy: 'IM-102',
+              penalty_points: 0,
+            },
+            is_simulated: false,
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to capture snapshot:', e);
+    }
   };
 
   // Enter Fullscreen & Start Examination
@@ -421,6 +695,13 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     setIsExamRunning(true);
     setSecondsRemaining(300);
     setStartTimeMs(Date.now());
+
+    // Ensure camera is started upon entering the active exam
+    if (!desktopMediaStreamRef.current || !isStreamActive(desktopMediaStreamRef.current)) {
+      initializeCamera().catch((err) => {
+        console.warn('Camera initialization during exam start encountered adversity:', err);
+      });
+    }
 
     if (activeSession) {
       recordCandidateEvent(activeSession.session_id, {
@@ -475,19 +756,122 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     return () => clearInterval(timer);
   }, [isExamRunning, currentScreen]);
 
+  // Restricted Examination Mode: Keyboard & Shortcut Controls
+  useEffect(() => {
+    if (currentScreen !== 'active_exam') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. Check if user is focused on an editable element (typing answers or scratchpad)
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+
+      // 2. Allow modifier keys themselves
+      const isModifierOnly = ['Shift', 'Control', 'Alt', 'Meta'].includes(e.key);
+      if (isModifierOnly) return;
+
+      // 3. Intercept PrintScreen (Screen Capture shortcut)
+      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
+        e.preventDefault();
+        setShortcutNotice('Screenshot shortcut (PrintScreen) intercepted. Screen capture is restricted during proctored exams under Policy IM-102.');
+        if (activeSession) {
+          recordCandidateEvent(activeSession.session_id, {
+            event_type: 'EXAM_WARNING_ACKNOWLEDGED',
+            source: 'browser',
+            metadata: {
+              interception: 'PrintScreen',
+              client_timestamp: new Date().toISOString(),
+              policy_note: 'IM-102 non-penalizing audit record',
+            },
+            is_simulated: false,
+          });
+        }
+        return;
+      }
+
+      // 4. Intercept Page Print (Ctrl+P / Cmd+P)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        setShortcutNotice('Printing and page export shortcuts (Ctrl+P / Cmd+P) are disabled during the examination.');
+        return;
+      }
+
+      // 5. Intercept Save Page (Ctrl+S / Cmd+S)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        setShortcutNotice('Page saving shortcuts (Ctrl+S / Cmd+S) are disabled during the examination.');
+        return;
+      }
+
+      // 6. Intercept Developer Tools (F12, Ctrl+Shift+I, Cmd+Option+I, Ctrl+Shift+J, Ctrl+Shift+C)
+      if (
+        e.key === 'F12' ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(e.key)) ||
+        (e.metaKey && e.altKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(e.key))
+      ) {
+        e.preventDefault();
+        setShortcutNotice('Developer tools shortcuts are disabled during the examination.');
+        return;
+      }
+
+      // 7. Intercept View Source (Ctrl+U / Cmd+Option+U)
+      if (
+        ((e.ctrlKey || e.metaKey) && (e.key === 'u' || e.key === 'U')) ||
+        (e.metaKey && e.altKey && (e.key === 'u' || e.key === 'U'))
+      ) {
+        e.preventDefault();
+        setShortcutNotice('View Source shortcut is disabled during the examination.');
+        return;
+      }
+
+      // 8. If candidate is NOT typing in an input, provide helpful exam option navigation
+      if (!isInput) {
+        if (['1', 'a', 'A'].includes(e.key)) {
+          handleSelectOption('A');
+        } else if (['2', 'b', 'B'].includes(e.key)) {
+          handleSelectOption('B');
+        } else if (['3', 'c', 'C'].includes(e.key)) {
+          handleSelectOption('C');
+        } else if (['4', 'd', 'D'].includes(e.key)) {
+          handleSelectOption('D');
+        } else if (e.key === 'ArrowRight' && currentQuestionIndex < SYNTHETIC_EXAM_QUESTIONS.length - 1) {
+          setCurrentQuestionIndex((prev) => prev + 1);
+        } else if (e.key === 'ArrowLeft' && currentQuestionIndex > 0) {
+          setCurrentQuestionIndex((prev) => prev - 1);
+        }
+      }
+    };
+
+    // Right-click contextmenu prevention on active exam
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      setShortcutNotice('Right-click context menu is disabled during the active examination. Please use on-screen controls.');
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('contextmenu', handleContextMenu);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, [currentScreen, activeSession, currentQuestionIndex]);
+
   // Restricted Examination Mode: Fullscreen & Tab Focus Monitors with Debounce
   useEffect(() => {
     if (currentScreen !== 'active_exam' || !activeSession) return;
 
-    let lastInterruptionTime = 0;
     const cooldownMs = 1500;
 
     const handleFullscreenChange = () => {
       const isFs = Boolean(document.fullscreenElement);
       setIsFullscreen(isFs);
       const now = Date.now();
-      if (!isFs && now - lastInterruptionTime > cooldownMs) {
-        lastInterruptionTime = now;
+      if (!isFs && now - lastInterruptionTimeRef.current > cooldownMs) {
+        lastInterruptionTimeRef.current = now;
         setWarningType('fullscreen_exit');
         setWarningCount((prev) => prev + 1);
         setWarningModalOpen(true);
@@ -502,8 +886,8 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
 
     const handleVisibilityChange = () => {
       const now = Date.now();
-      if (document.hidden && now - lastInterruptionTime > cooldownMs) {
-        lastInterruptionTime = now;
+      if (document.hidden && now - lastInterruptionTimeRef.current > cooldownMs) {
+        lastInterruptionTimeRef.current = now;
         setWarningType('tab_switch');
         setWarningCount((prev) => prev + 1);
         setWarningModalOpen(true);
@@ -523,12 +907,24 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       }
     };
 
+    const handleWindowBlur = () => {
+      const now = Date.now();
+      if (now - lastInterruptionTimeRef.current > cooldownMs && !document.fullscreenElement) {
+        lastInterruptionTimeRef.current = now;
+        setWarningType('fullscreen_exit');
+        setWarningCount((prev) => prev + 1);
+        setWarningModalOpen(true);
+      }
+    };
+
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
     };
   }, [currentScreen, activeSession]);
 
@@ -1055,13 +1451,34 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
             {/* Live Camera Preview */}
             <div className="relative aspect-video rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 flex items-center justify-center">
-              {cameraPermissionState === 'granted' ? (
-                <video ref={videoPreviewRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              {isRequestingMedia ? (
+                <div className="p-4 text-center space-y-2">
+                  <RefreshCw className="w-7 h-7 text-teal-600 animate-spin mx-auto" />
+                  <p className="text-xs text-slate-700 font-semibold">Requesting Camera Access...</p>
+                  <p className="text-[11px] text-slate-400">Please respond to the browser permission prompt.</p>
+                </div>
+              ) : cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) ? (
+                <video
+                  ref={videoPreviewRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  onLoadedMetadata={(e) => {
+                    const v = e.currentTarget;
+                    v.muted = true;
+                    v.play().catch(() => {});
+                  }}
+                  className="w-full h-full object-cover"
+                />
               ) : (
-                <div className="p-4 text-center space-y-1.5">
+                <div className="p-4 text-center space-y-1.5 max-w-xs">
                   <VideoOff className="w-7 h-7 text-slate-400 mx-auto" />
-                  <p className="text-xs text-slate-600 font-medium">Camera Inactive</p>
-                  <p className="text-[11px] text-slate-400">Click below to allow access.</p>
+                  <p className="text-xs text-slate-700 font-semibold">
+                    {cameraErrorInfo ? cameraErrorInfo.message : 'Camera Inactive'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 leading-normal">
+                    {cameraErrorInfo ? cameraErrorInfo.guidance : 'Click "Enable Camera & Mic" below to start live preview.'}
+                  </p>
                 </div>
               )}
 
@@ -1069,10 +1486,20 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
               <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] text-slate-700 border border-slate-200 shadow-xs">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    cameraPermissionState === 'granted' ? 'bg-emerald-500' : 'bg-slate-400'
+                    cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream)
+                      ? 'bg-emerald-500'
+                      : isRequestingMedia
+                      ? 'bg-amber-500 animate-pulse'
+                      : 'bg-slate-400'
                   }`}
                 />
-                <span>{cameraPermissionState === 'granted' ? 'Live' : 'Off'}</span>
+                <span>
+                  {cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream)
+                    ? 'Live'
+                    : isRequestingMedia
+                    ? 'Requesting...'
+                    : 'Off'}
+                </span>
               </div>
             </div>
 
@@ -1087,10 +1514,15 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={handleRequestDesktopMedia}
-                    className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                    disabled={isRequestingMedia}
+                    className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                   >
-                    <Video className="w-3.5 h-3.5" />
-                    <span>Enable Camera & Mic</span>
+                    {isRequestingMedia ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Video className="w-3.5 h-3.5" />
+                    )}
+                    <span>{cameraPermissionState === 'granted' ? 'Re-test Camera & Mic' : 'Enable Camera & Mic'}</span>
                   </button>
 
                   {desktopMediaStream && (
@@ -1102,6 +1534,13 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                     </button>
                   )}
                 </div>
+
+                {cameraErrorInfo && (
+                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 space-y-0.5">
+                    <strong>Notice: </strong>
+                    <span>{cameraErrorInfo.guidance}</span>
+                  </div>
+                )}
               </div>
 
               {/* Microphone Audio Level Indicator */}
@@ -1226,16 +1665,20 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
             <p>
               <strong>4. Advisory Scores:</strong> AI scores assist human reviewers. Automatic disqualification is prohibited.
             </p>
+            <p>
+              <strong>5. Screen Focus & Capture Policy:</strong> Continuous fullscreen focus is required during the exam. Screenshot shortcuts (PrintScreen), page printing (Ctrl/Cmd+P), page saving (Ctrl/Cmd+S), and developer tools are restricted to safeguard test integrity. No covert screen recording or hidden surveillance is conducted.
+            </p>
           </div>
 
           <label className="flex items-start gap-2 cursor-pointer text-xs text-slate-700">
             <input
               type="checkbox"
-              defaultChecked
+              checked={hasProctoringConsent}
+              onChange={(e) => setHasProctoringConsent(e.target.checked)}
               className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
             />
             <span>
-              I consent to local assessment monitoring under Policy IM-102.
+              I consent to local video/audio proctoring and exam focus monitoring under Policy IM-102.
             </span>
           </label>
 
@@ -1248,7 +1691,8 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
             </button>
             <button
               onClick={() => setCurrentScreen('exam_rules')}
-              className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+              disabled={!hasProctoringConsent}
+              className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
             >
               <span>Next: Rules</span>
               <ChevronRight className="w-4 h-4" />
@@ -1290,6 +1734,16 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                 </span>
               </div>
             </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+              <Shield className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <strong className="text-slate-900 block mb-0.5 text-xs">Browser Security Boundaries</strong>
+                <span className="text-slate-600 text-[11px] leading-tight">
+                  Proctoring operates via standard browser APIs. It intercepts conflicting application-level shortcuts without globally disabling keyboard input or interfering with operating system controls.
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-900 leading-tight">
@@ -1318,6 +1772,22 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       {/* SCREEN 8: ACTIVE EXAMINATION INTERFACE */}
       {currentScreen === 'active_exam' && (
         <div className="space-y-4">
+          {/* Keyboard Shortcut & Screen Capture Warning Banner */}
+          {shortcutNotice && (
+            <div className="p-3 rounded-xl bg-amber-50 border-2 border-amber-300 text-xs text-amber-900 flex items-center justify-between shadow-xs animate-fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>{shortcutNotice}</span>
+              </div>
+              <button
+                onClick={() => setShortcutNotice(null)}
+                className="text-amber-600 hover:text-amber-800 font-bold ml-2 text-sm"
+              >
+                &times;
+              </button>
+            </div>
+          )}
+
           {/* Top Exam Header with Fullscreen Indicator */}
           <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -1397,6 +1867,25 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                 })}
               </div>
 
+              {/* Candidate Scratchpad (Permitted Normal Keyboard Input) */}
+              <div className="pt-2 border-t border-slate-100 space-y-1">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                  <label htmlFor={`scratchpad-${currentQ.id}`}>Candidate Scratchpad / Rough Work:</label>
+                  <span className="text-[10px] text-slate-400 font-normal">Normal typing fully supported</span>
+                </div>
+                <textarea
+                  id={`scratchpad-${currentQ.id}`}
+                  rows={2}
+                  value={candidateNotes[currentQ.id] || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCandidateNotes((prev) => ({ ...prev, [currentQ.id]: val }));
+                  }}
+                  placeholder="Type rough work notes, formulas, or answer justification here..."
+                  className="w-full p-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20"
+                />
+              </div>
+
               {/* Question Navigation */}
               <div className="pt-3 flex items-center justify-between border-t border-slate-100">
                 <button
@@ -1436,17 +1925,66 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
             {/* Candidate Desktop Video Preview & Demo Controls Drawer */}
             <div className="space-y-3">
               <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2.5">
-                <span className="text-xs font-semibold text-slate-800 block">
-                  Proctor Telemetry
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-800 block">
+                    Proctor Telemetry
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : isRequestingMedia
+                        ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    }`}
+                  >
+                    {cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut
+                      ? 'Live Stream'
+                      : isRequestingMedia
+                      ? 'Connecting'
+                      : 'Offline'}
+                  </span>
+                </div>
 
                 <div className="relative aspect-video rounded-xl bg-slate-100 overflow-hidden border border-slate-200 flex items-center justify-center">
-                  {cameraPermissionState === 'granted' && !simulatedCameraCut ? (
-                    <video ref={examVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                  {isRequestingMedia ? (
+                    <div className="text-center p-3 space-y-1.5">
+                      <RefreshCw className="w-5 h-5 mx-auto text-teal-600 animate-spin" />
+                      <span className="text-xs text-slate-700 font-semibold block">Starting Camera...</span>
+                      <span className="text-[10px] text-slate-400">Connecting to webcam device</span>
+                    </div>
+                  ) : cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut ? (
+                    <video
+                      ref={examVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      onLoadedMetadata={(e) => {
+                        const v = e.currentTarget;
+                        v.muted = true;
+                        v.play().catch(() => {});
+                      }}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    <div className="text-center p-2 text-xs text-slate-400 space-y-1">
+                    <div className="text-center p-3 text-xs text-slate-500 space-y-2 max-w-[210px]">
                       <VideoOff className="w-5 h-5 mx-auto text-amber-500" />
-                      <span className="text-[11px]">{simulatedCameraCut ? 'Camera Interrupted' : 'Video Off'}</span>
+                      <div>
+                        <span className="text-xs font-semibold text-slate-700 block">
+                          {cameraErrorInfo ? cameraErrorInfo.message : (simulatedCameraCut ? 'Camera Interrupted' : 'Camera Inactive')}
+                        </span>
+                        <span className="text-[10px] text-slate-400 leading-tight block mt-0.5">
+                          {cameraErrorInfo ? cameraErrorInfo.guidance : 'Camera is not currently capturing frames.'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => initializeCamera(true)}
+                        disabled={isRequestingMedia}
+                        className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold text-[11px] shadow-xs inline-flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Retry Camera</span>
+                      </button>
                     </div>
                   )}
 
@@ -1505,6 +2043,31 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                     <strong className="block text-slate-800 text-[11px]">Camera Cut</strong>
                     <span className="text-[10px] text-slate-400">5-Sec Pause</span>
                   </button>
+                </div>
+
+                {/* Explicit Authorized Workflow: Capture Verification Snapshot */}
+                <div className="pt-1.5 border-t border-amber-200/60">
+                  <button
+                    onClick={handleCaptureAuthorizedSnapshot}
+                    className="w-full py-1.5 px-2 rounded-lg bg-white border border-amber-300 hover:bg-amber-100/60 text-slate-800 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Capture Authorized Verification Snapshot</span>
+                  </button>
+
+                  {authorizedSnapshot && (
+                    <div className="mt-2 p-2 rounded-lg bg-white border border-slate-200 flex items-center gap-2">
+                      <img
+                        src={authorizedSnapshot.dataUrl}
+                        alt="Authorized Snapshot"
+                        className="w-12 h-9 object-cover rounded border border-slate-200"
+                      />
+                      <div className="text-[10px] leading-tight">
+                        <strong className="text-slate-800 block">Authorized Snapshot</strong>
+                        <span className="text-slate-400">{authorizedSnapshot.timestamp} &middot; Candidate Consent</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

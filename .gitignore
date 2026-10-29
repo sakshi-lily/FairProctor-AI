@@ -11,7 +11,7 @@ frontend/dist/
 build/
 *.tsbuildinfo
 
-# Environment & Secret Files (Keep .env.example tracked)
+# Environment & Secret Files
 .env
 .env.*
 .env.local
@@ -43,6 +43,11 @@ __pycache__/
 .coverage
 htmlcov/
 *.joblib
+
+# Python Virtual Environments
+.venv/
+venv/
+env/
 
 # IDE & OS Files
 .vscode/*

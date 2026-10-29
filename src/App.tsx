@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
+import { TrustedAssessment } from './components/TrustedAssessment';
 import { InteractiveDashboard } from './components/InteractiveDashboard';
-import { Features } from './components/Features';
 import { Workflow } from './components/Workflow';
+import { SignatureFeatures } from './components/SignatureFeatures';
+import { MobilePreTestPreview } from './components/MobilePreTestPreview';
+import { PrivacyFairness } from './components/PrivacyFairness';
 import { Footer } from './components/Footer';
 import { PreTestModal } from './components/PreTestModal';
 import { AppealModal } from './components/AppealModal';
@@ -21,36 +24,45 @@ export function App() {
   };
 
   return (
-    <div className="bg-grid-subtle" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Navigation Bar */}
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Slim Professional Navigation Bar */}
       <Navbar onOpenPreTest={() => setIsPreTestOpen(true)} />
 
       {/* Main Content Sections */}
       <main style={{ flex: 1 }}>
-        {/* Hero Section */}
+        {/* Hero Section (Spacious Corporate Navy Hero) */}
         <Hero
           onExploreDemo={() => scrollToSection('interactive-demo')}
           onSeeHowItWorks={() => scrollToSection('workflow')}
           onOpenPreTest={() => setIsPreTestOpen(true)}
         />
 
-        {/* Product Preview: Interactive Reviewer Dashboard */}
+        {/* Section A — Trusted Assessment Experience (Light Blue-Grey Section) */}
+        <TrustedAssessment />
+
+        {/* Section B — Interactive Product Preview (Reviewer Triage Dashboard) */}
         <InteractiveDashboard onOpenAppealModal={(session) => setAppealSession(session)} />
 
-        {/* 6 Visually Distinct Feature Sections (A to F) */}
-        <Features onOpenPreTest={() => setIsPreTestOpen(true)} />
-
-        {/* End-to-End Workflow Section (01 to 05) */}
+        {/* Section C — How It Works (Visual Connected Workflow) */}
         <Workflow />
+
+        {/* Section D — Signature Features (5 Core Capabilities) */}
+        <SignatureFeatures />
+
+        {/* Section E — Mobile Pre-Test Check (Mobile Phone Preview & Troubleshooting) */}
+        <MobilePreTestPreview onOpenDiagnosticModal={() => setIsPreTestOpen(true)} />
+
+        {/* Section F — Privacy and Fairness (Contrasting Light Section & Due Process) */}
+        <PrivacyFairness />
       </main>
 
-      {/* Closing Section & Footer */}
+      {/* Section G — Closing CTA Banner & Corporate Footer */}
       <Footer
         onExploreDemo={() => scrollToSection('interactive-demo')}
         onOpenPreTest={() => setIsPreTestOpen(true)}
       />
 
-      {/* Interactive Modals */}
+      {/* Interactive Diagnostics & Rebuttal Modals */}
       <PreTestModal isOpen={isPreTestOpen} onClose={() => setIsPreTestOpen(false)} />
 
       <AppealModal

@@ -2,17 +2,16 @@ import React, { useState, useRef } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import {
   ShieldCheck,
-  WifiOff,
+  Wifi,
   Radio,
   ArrowRight,
-  Layers,
-  AlertCircle,
-  CheckCircle2,
-  Cpu,
-  RefreshCw,
-  Eye,
   Sliders,
-  Activity
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Activity,
+  Layers,
+  Clock
 } from 'lucide-react';
 
 interface HeroProps {
@@ -22,18 +21,18 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks, onOpenPreTest }) => {
-  // Toggle between Legacy Proctor vs FairProctor Decoupled mode
+  // Toggle between FairProctor Decoupled vs Legacy Conflated mode
   const [isDecoupled, setIsDecoupled] = useState<boolean>(true);
   const [activeSignalIndex, setActiveSignalIndex] = useState<number>(0);
 
-  // 3D perspective mouse tilt
+  // Subtle 3D perspective mouse tilt
   const containerRef = useRef<HTMLDivElement>(null);
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
   const springConfig = { damping: 25, stiffness: 120 };
-  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [10, -10]), springConfig);
-  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-12, 12]), springConfig);
+  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [7, -7]), springConfig);
+  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-8, 8]), springConfig);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
@@ -49,57 +48,56 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks, onOp
     mouseY.set(0);
   };
 
-  const signals = [
+  const evidenceSignals = [
     {
-      id: 'net',
-      label: 'Cellular Jitter',
-      legacyVerdict: 'Camera Tamper Flag',
-      fairVerdict: 'Environmental Suppression',
-      metric: '34% packet loss · RTT 920ms',
-      time: '14:22:08'
+      time: '14:22:08',
+      type: 'Connectivity Latency',
+      detail: 'Packet Loss 34% · Uplink RTT 920ms',
+      fairVerdict: 'Environmental anomaly isolated. Video freeze penalty suppressed.',
+      legacyVerdict: 'Camera obstruction flagged. Candidate automatically penalized.'
     },
     {
-      id: 'gaze',
-      label: 'Downward Gaze',
-      legacyVerdict: 'Cheat Flag (Looking Away)',
-      fairVerdict: 'Scratchpad Math Ingest',
-      metric: 'Head pitch 6° · Question 14',
-      time: '14:31:40'
+      time: '14:35:12',
+      type: 'Contextual Tab Switch',
+      detail: 'Window blur 3.4s · Target: Formula Appendix PDF',
+      fairVerdict: 'Authorized reference document verified in DOM. Score unaffected.',
+      legacyVerdict: 'Unauthorized browser navigation flag triggered.'
     },
     {
-      id: 'dom',
-      label: 'Formula Tab Focus',
-      legacyVerdict: 'Browser Blur Penalty',
-      fairVerdict: 'Approved PDF Modal Target',
-      metric: 'DOM appendix focus · 3.4s',
-      time: '14:45:15'
+      time: '14:48:30',
+      type: 'Keystroke Flight Time',
+      detail: 'Typing cadence within normal cognitive drafting distribution',
+      fairVerdict: 'Normal question solving verified. No clipboard injection.',
+      legacyVerdict: 'Uncalibrated baseline generated low-confidence flag.'
     }
   ];
 
   return (
     <section
       id="overview"
+      className="bg-navy-grid"
       style={{
         position: 'relative',
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
-        paddingTop: '110px',
-        paddingBottom: '80px',
+        paddingTop: '115px',
+        paddingBottom: '85px',
+        backgroundColor: '#061744',
         overflow: 'hidden'
       }}
     >
-      {/* Background ambient lighting */}
+      {/* Background ambient gradient glow */}
       <div
         style={{
           position: 'absolute',
-          top: '-15%',
-          left: '25%',
-          width: '600px',
-          height: '600px',
+          top: '-20%',
+          right: '10%',
+          width: '650px',
+          height: '650px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(121, 242, 192, 0.08) 0%, rgba(21, 28, 53, 0) 70%)',
-          filter: 'blur(80px)',
+          background: 'radial-gradient(circle, rgba(24, 184, 106, 0.12) 0%, rgba(6, 23, 68, 0) 70%)',
+          filter: 'blur(90px)',
           pointerEvents: 'none',
           zIndex: 0
         }}
@@ -107,12 +105,12 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks, onOp
       <div
         style={{
           position: 'absolute',
-          bottom: '5%',
-          right: '-5%',
+          bottom: '-10%',
+          left: '-5%',
           width: '500px',
           height: '500px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(30, 41, 75, 0.4) 0%, rgba(11, 16, 32, 0) 70%)',
+          background: 'radial-gradient(circle, rgba(14, 36, 99, 0.6) 0%, rgba(3, 16, 47, 0) 70%)',
           filter: 'blur(100px)',
           pointerEvents: 'none',
           zIndex: 0
@@ -128,11 +126,11 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks, onOp
             alignItems: 'center'
           }}
         >
-          {/* Left Column: Editorial Headline & Actions */}
+          {/* Left Column: Hero Content */}
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
             {/* Eyebrow */}
             <div
@@ -140,10 +138,10 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks, onOp
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                backgroundColor: 'rgba(121, 242, 192, 0.09)',
-                border: '1px solid rgba(121, 242, 192, 0.22)',
-                padding: '0.4rem 0.85rem',
-                borderRadius: '9999px',
+                backgroundColor: 'rgba(24, 184, 106, 0.12)',
+                border: '1px solid rgba(24, 184, 106, 0.3)',
+                padding: '0.35rem 0.85rem',
+                borderRadius: '4px',
                 marginBottom: '1.5rem'
               }}
             >
@@ -152,60 +150,52 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks, onOp
                   width: '7px',
                   height: '7px',
                   borderRadius: '50%',
-                  backgroundColor: '#79F2C0',
-                  boxShadow: '0 0 10px #79F2C0'
+                  backgroundColor: '#18B86A',
+                  boxShadow: '0 0 8px #18B86A'
                 }}
               />
               <span
                 style={{
-                  color: '#79F2C0',
+                  color: '#18B86A',
                   fontSize: '0.75rem',
                   fontWeight: 700,
-                  letterSpacing: '0.12em',
+                  letterSpacing: '0.08em',
                   textTransform: 'uppercase'
                 }}
               >
-                BUILT FOR FAIRER ASSESSMENTS
+                IM-102 HACKATHON · EXPLAINABLE EXAM INTEGRITY
               </span>
             </div>
 
-            {/* Headline with Contrasting Typography */}
+            {/* Headline */}
             <h1
               style={{
-                fontSize: 'clamp(2.75rem, 5.2vw, 4.25rem)',
+                fontSize: 'clamp(2.5rem, 4.5vw, 3.75rem)',
                 fontWeight: 800,
-                lineHeight: 1.08,
-                letterSpacing: '-0.035em',
+                lineHeight: 1.12,
+                letterSpacing: '-0.03em',
                 marginBottom: '1.5rem',
                 color: '#FFFFFF'
               }}
             >
-              Fair exams.{' '}
-              <span
-                className="editorial-italic"
-                style={{
-                  color: '#79F2C0',
-                  fontWeight: 400,
-                  display: 'inline-block',
-                  position: 'relative'
-                }}
-              >
-                Smarter integrity.
+              Protect exam integrity.{' '}
+              <span style={{ color: '#18B86A', display: 'inline-block' }}>
+                Preserve fairness.
               </span>
             </h1>
 
             {/* Supporting Text */}
             <p
               style={{
-                fontSize: 'clamp(1.05rem, 1.4vw, 1.25rem)',
-                color: '#94A3B8',
-                lineHeight: 1.6,
+                fontSize: 'clamp(1.05rem, 1.35vw, 1.2rem)',
+                color: '#B8C4D9',
+                lineHeight: 1.65,
                 maxWidth: '560px',
                 marginBottom: '2.25rem'
               }}
             >
-              Understand suspicious behaviour without confusing poor connectivity with misconduct.
-              A multi-signal AI engine with cryptographic auditability and human-in-the-loop review.
+              An explainable, connectivity-aware proctoring intelligence layer that distinguishes suspicious behaviour
+              from the challenges of real-world testing environments.
             </p>
 
             {/* Primary & Secondary CTAs */}
@@ -218,64 +208,63 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks, onOp
                 marginBottom: '2.5rem'
               }}
             >
-              <button onClick={onExploreDemo} className="btn btn-primary">
+              <button onClick={onExploreDemo} className="btn btn-green">
                 <span>Explore the Platform</span>
                 <ArrowRight size={16} />
               </button>
 
-              <button onClick={onSeeHowItWorks} className="btn btn-secondary">
+              <button onClick={onSeeHowItWorks} className="btn btn-outline-white">
                 <Sliders size={16} />
                 <span>See How It Works</span>
               </button>
 
               <button
                 onClick={onOpenPreTest}
-                className="btn btn-secondary"
-                style={{ fontSize: '0.8125rem', padding: '0.75rem 1rem' }}
+                className="btn btn-outline-white"
+                style={{ fontSize: '0.8125rem' }}
               >
                 <Activity size={15} color="#79F2C0" />
-                <span>Pre-Test Check</span>
+                <span>Pre-Test Diagnostic</span>
               </button>
             </div>
 
-            {/* Trust Statement */}
+            {/* Concise Trust Statement */}
             <div
               style={{
-                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                paddingTop: '1.5rem'
+                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                paddingTop: '1.25rem'
               }}
             >
               <p
                 style={{
                   fontSize: '0.875rem',
-                  color: '#CBD5E1',
-                  fontWeight: 500,
-                  letterSpacing: '0.01em',
+                  color: '#FFFFFF',
+                  fontWeight: 600,
+                  letterSpacing: '0.02em',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.5rem',
+                  gap: '0.6rem',
                   flexWrap: 'wrap'
                 }}
               >
-                <span style={{ color: '#79F2C0', fontWeight: 700 }}>●</span>
-                <span>Explainable signals.</span>
-                <span style={{ color: '#79F2C0', fontWeight: 700 }}>●</span>
-                <span>Human-led decisions.</span>
-                <span style={{ color: '#79F2C0', fontWeight: 700 }}>●</span>
-                <span>Connectivity-aware scoring.</span>
+                <span style={{ color: '#18B86A' }}>●</span>
+                <span>Evidence-led.</span>
+                <span style={{ color: '#18B86A' }}>●</span>
+                <span>Privacy-conscious.</span>
+                <span style={{ color: '#18B86A' }}>●</span>
+                <span>Human-reviewed.</span>
               </p>
             </div>
           </motion.div>
 
-          {/* Right Column: 3D Integrity Scoring Engine Visual */}
+          {/* Right Column: Animated Product Visualization */}
           <motion.div
             ref={containerRef}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            id="scoring-engine"
+            transition={{ duration: 0.7, delay: 0.15 }}
             style={{
               position: 'relative',
               perspective: '1200px',
@@ -292,41 +281,41 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks, onOp
                 maxWidth: '520px',
                 position: 'relative'
               }}
-              className="card-indigo"
+              className="card-navy"
             >
-              {/* Card Header & Decoupling Toggle */}
+              {/* Visualization Header */}
               <div
                 style={{
-                  padding: '1.25rem 1.5rem',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                  padding: '1.15rem 1.4rem',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   flexWrap: 'wrap',
-                  gap: '0.75rem',
-                  backgroundColor: 'rgba(11, 16, 32, 0.6)'
+                  gap: '0.5rem',
+                  backgroundColor: 'rgba(3, 16, 47, 0.6)'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Cpu size={16} color="#79F2C0" />
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.04em', color: '#F8FAFC' }}>
+                  <ShieldCheck size={18} color="#18B86A" />
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#FFFFFF', letterSpacing: '0.04em' }}>
                     INTEGRITY SCORING ENGINE
                   </span>
                 </div>
 
-                {/* Interactive Toggle */}
+                {/* Interactive Decoupling Mode Toggle */}
                 <button
                   onClick={() => setIsDecoupled(!isDecoupled)}
-                  title="Click to toggle between Legacy Proctor and FairProctor AI Decoupling"
+                  title="Click to toggle between FairProctor AI Decoupling and Legacy Proctoring"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    background: isDecoupled ? 'rgba(121, 242, 192, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                    border: `1px solid ${isDecoupled ? '#79F2C0' : '#EF4444'}`,
+                    gap: '0.4rem',
+                    background: isDecoupled ? 'rgba(24, 184, 106, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    border: `1px solid ${isDecoupled ? '#18B86A' : '#EF4444'}`,
                     padding: '0.3rem 0.65rem',
-                    borderRadius: '6px',
-                    color: isDecoupled ? '#79F2C0' : '#EF4444',
+                    borderRadius: '4px',
+                    color: isDecoupled ? '#18B86A' : '#EF4444',
                     fontSize: '0.75rem',
                     fontWeight: 700,
                     cursor: 'pointer',
@@ -334,256 +323,244 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks, onOp
                   }}
                 >
                   <RefreshCw size={12} />
-                  <span>{isDecoupled ? 'Connectivity Decoupled: ON' : 'Legacy Conflated: ON'}</span>
+                  <span>{isDecoupled ? 'Decoupling: Active' : 'Legacy Conflated'}</span>
                 </button>
               </div>
 
-              {/* 3D Orbiting Engine Canvas */}
+              {/* Central Scoring Engine & Orbiting Rings */}
               <div
                 style={{
                   position: 'relative',
-                  height: '320px',
+                  height: '310px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '1.5rem',
+                  padding: '1.25rem',
                   overflow: 'hidden'
                 }}
               >
-                {/* Precision Crafted Concentric Orbiting Rings (SVG) */}
+                {/* SVG Concentric Orbiting Rings */}
                 <svg
-                  viewBox="0 0 360 360"
+                  viewBox="0 0 340 340"
                   style={{
                     position: 'absolute',
-                    width: '320px',
-                    height: '320px',
+                    width: '300px',
+                    height: '300px',
                     pointerEvents: 'none'
                   }}
                 >
-                  {/* Outer Ring */}
                   <circle
-                    cx="180"
-                    cy="180"
-                    r="150"
+                    cx="170"
+                    cy="170"
+                    r="140"
                     fill="none"
-                    stroke={isDecoupled ? 'rgba(121, 242, 192, 0.18)' : 'rgba(239, 68, 68, 0.22)'}
+                    stroke={isDecoupled ? 'rgba(24, 184, 106, 0.15)' : 'rgba(239, 68, 68, 0.2)'}
                     strokeWidth="1.5"
                     strokeDasharray="4 6"
                   />
-                  {/* Middle Ring */}
                   <circle
-                    cx="180"
-                    cy="180"
-                    r="110"
+                    cx="170"
+                    cy="170"
+                    r="100"
                     fill="none"
-                    stroke={isDecoupled ? 'rgba(121, 242, 192, 0.25)' : 'rgba(239, 68, 68, 0.3)'}
+                    stroke={isDecoupled ? 'rgba(24, 184, 106, 0.25)' : 'rgba(239, 68, 68, 0.3)'}
                     strokeWidth="1.5"
-                    strokeDasharray="8 4"
+                    strokeDasharray="6 4"
                   />
-                  {/* Inner Orbit */}
                   <circle
-                    cx="180"
-                    cy="180"
-                    r="70"
+                    cx="170"
+                    cy="170"
+                    r="65"
                     fill="none"
-                    stroke={isDecoupled ? '#79F2C0' : '#EF4444'}
+                    stroke={isDecoupled ? '#18B86A' : '#EF4444'}
                     strokeOpacity="0.4"
                     strokeWidth="2"
                   />
-                  {/* Radial Crosshairs */}
-                  <line x1="180" y1="20" x2="180" y2="340" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                  <line x1="20" y1="180" x2="340" y2="180" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
                 </svg>
 
-                {/* Central Translucent Geometric Object */}
+                {/* Central Translucent Product Core */}
                 <motion.div
                   animate={{
-                    rotate: 360,
-                    scale: isDecoupled ? [1, 1.04, 1] : [1, 0.98, 1]
+                    scale: isDecoupled ? [1, 1.03, 1] : [1, 0.98, 1]
                   }}
                   transition={{
-                    rotate: { duration: 32, repeat: Infinity, ease: 'linear' },
-                    scale: { duration: 3, repeat: Infinity, ease: 'easeInOut' }
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: 'easeInOut'
                   }}
                   style={{
-                    width: '92px',
-                    height: '92px',
-                    borderRadius: '24px',
+                    width: '88px',
+                    height: '88px',
+                    borderRadius: '20px',
                     background: isDecoupled
-                      ? 'linear-gradient(135deg, rgba(121, 242, 192, 0.22) 0%, rgba(21, 28, 53, 0.8) 100%)'
-                      : 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(21, 28, 53, 0.8) 100%)',
-                    border: `1.5px solid ${isDecoupled ? 'rgba(121, 242, 192, 0.6)' : 'rgba(239, 68, 68, 0.6)'}`,
+                      ? 'linear-gradient(135deg, rgba(24, 184, 106, 0.2) 0%, rgba(14, 36, 99, 0.9) 100%)'
+                      : 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(14, 36, 99, 0.9) 100%)',
+                    border: `1.5px solid ${isDecoupled ? 'rgba(24, 184, 106, 0.6)' : 'rgba(239, 68, 68, 0.6)'}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     boxShadow: isDecoupled
-                      ? '0 0 35px rgba(121, 242, 192, 0.3)'
-                      : '0 0 35px rgba(239, 68, 68, 0.35)',
-                    backdropFilter: 'blur(12px)',
+                      ? '0 0 30px rgba(24, 184, 106, 0.3)'
+                      : '0 0 30px rgba(239, 68, 68, 0.35)',
+                    backdropFilter: 'blur(10px)',
                     zIndex: 2
                   }}
                 >
-                  <ShieldCheck size={38} color={isDecoupled ? '#79F2C0' : '#EF4444'} />
+                  <ShieldCheck size={36} color={isDecoupled ? '#18B86A' : '#EF4444'} />
                 </motion.div>
 
-                {/* Orbiting Telemetry Nodes */}
-                {signals.map((sig, idx) => {
-                  const angles = [30, 150, 270];
+                {/* Floating Central Integrity Risk Score (Top Right) */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '16px',
+                    right: '16px',
+                    backgroundColor: 'rgba(3, 16, 47, 0.92)',
+                    border: `1px solid ${isDecoupled ? 'rgba(24, 184, 106, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+                    borderRadius: '8px',
+                    padding: '0.6rem 0.85rem',
+                    zIndex: 4,
+                    textAlign: 'right'
+                  }}
+                >
+                  <div style={{ fontSize: '0.65rem', color: '#B8C4D9', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Integrity Risk Score
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: '0.2rem' }}>
+                    <span
+                      style={{
+                        fontSize: '1.85rem',
+                        fontWeight: 800,
+                        color: isDecoupled ? '#18B86A' : '#EF4444',
+                        lineHeight: 1
+                      }}
+                    >
+                      {isDecoupled ? '14' : '88'}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: '#8696B2' }}>/ 100</span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '0.6875rem',
+                      fontWeight: 700,
+                      color: isDecoupled ? '#18B86A' : '#EF4444'
+                    }}
+                  >
+                    {isDecoupled ? 'Low Risk · Auto-Cleared' : 'Flagged · False Obstruction'}
+                  </span>
+                </div>
+
+                {/* Floating Connectivity Indicator (Bottom Left) */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '16px',
+                    left: '16px',
+                    backgroundColor: 'rgba(3, 16, 47, 0.92)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '8px',
+                    padding: '0.6rem 0.85rem',
+                    zIndex: 4
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+                    <Radio size={12} color={isDecoupled ? '#F59E0B' : '#EF4444'} />
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#FFFFFF' }}>
+                      CONNECTIVITY STATUS
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: isDecoupled ? '#18B86A' : '#EF4444', fontWeight: 600 }}>
+                    {isDecoupled
+                      ? 'Packet Loss 34% (Environmental) — Suppressed'
+                      : 'Camera freeze penalized as dishonesty'}
+                  </div>
+                </div>
+
+                {/* Orbiting Evidence Marker Buttons */}
+                {evidenceSignals.map((sig, idx) => {
+                  const angles = [35, 155, 275];
                   const angleRad = (angles[idx] * Math.PI) / 180;
-                  const radius = 115;
+                  const radius = 105;
                   const x = Math.cos(angleRad) * radius;
                   const y = Math.sin(angleRad) * radius;
 
                   const isSelected = activeSignalIndex === idx;
 
                   return (
-                    <motion.button
-                      key={sig.id}
+                    <button
+                      key={idx}
                       onClick={() => setActiveSignalIndex(idx)}
-                      whileHover={{ scale: 1.15 }}
-                      aria-label={`Inspect signal ${sig.label}`}
                       style={{
                         position: 'absolute',
                         transform: `translate(${x}px, ${y}px)`,
-                        width: '38px',
-                        height: '38px',
+                        width: '34px',
+                        height: '34px',
                         borderRadius: '50%',
                         backgroundColor: isSelected
                           ? isDecoupled
-                            ? '#79F2C0'
+                            ? '#18B86A'
                             : '#EF4444'
-                          : '#151C35',
-                        border: `2px solid ${isDecoupled ? '#79F2C0' : '#EF4444'}`,
+                          : '#0E2463',
+                        border: `2px solid ${isDecoupled ? '#18B86A' : '#EF4444'}`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: isSelected ? '#0B1020' : '#FFFFFF',
+                        color: isSelected ? '#FFFFFF' : '#B8C4D9',
                         cursor: 'pointer',
-                        boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
-                        zIndex: 3
+                        zIndex: 3,
+                        boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
+                        transition: 'transform 0.2s ease'
                       }}
+                      title={`Inspect ${sig.type}`}
                     >
-                      {idx === 0 && <WifiOff size={16} />}
-                      {idx === 1 && <Eye size={16} />}
-                      {idx === 2 && <Layers size={16} />}
-                    </motion.button>
+                      {idx === 0 && <Wifi size={14} />}
+                      {idx === 1 && <Layers size={14} />}
+                      {idx === 2 && <Clock size={14} />}
+                    </button>
                   );
                 })}
-
-                {/* Overlay Sample Risk Score Badge (Floating Top Right) */}
-                <motion.div
-                  key={isDecoupled ? 'decoupled-score' : 'conflated-score'}
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.3 }}
-                  style={{
-                    position: 'absolute',
-                    top: '16px',
-                    right: '16px',
-                    backgroundColor: 'rgba(11, 16, 32, 0.88)',
-                    border: `1px solid ${isDecoupled ? 'rgba(121, 242, 192, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
-                    borderRadius: '10px',
-                    padding: '0.65rem 0.9rem',
-                    backdropFilter: 'blur(8px)',
-                    zIndex: 4,
-                    textAlign: 'right'
-                  }}
-                >
-                  <span style={{ fontSize: '0.6875rem', color: '#94A3B8', display: 'block', textTransform: 'uppercase' }}>
-                    Calculated Risk Score
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: '0.25rem' }}>
-                    <span
-                      style={{
-                        fontSize: '1.75rem',
-                        fontWeight: 800,
-                        color: isDecoupled ? '#79F2C0' : '#EF4444',
-                        lineHeight: 1
-                      }}
-                    >
-                      {isDecoupled ? '14' : '88'}
-                    </span>
-                    <span style={{ fontSize: '0.8125rem', color: '#64748B' }}>/ 100</span>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: '0.6875rem',
-                      fontWeight: 700,
-                      color: isDecoupled ? '#79F2C0' : '#EF4444'
-                    }}
-                  >
-                    {isDecoupled ? 'Low Risk · Auto-Cleared' : 'High Risk · Flagged for Cheating'}
-                  </span>
-                </motion.div>
-
-                {/* Overlay Connectivity Indicator (Floating Bottom Left) */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '16px',
-                    left: '16px',
-                    backgroundColor: 'rgba(11, 16, 32, 0.88)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: '10px',
-                    padding: '0.65rem 0.9rem',
-                    backdropFilter: 'blur(8px)',
-                    zIndex: 4
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.2rem' }}>
-                    <Radio size={13} color={isDecoupled ? '#F59E0B' : '#EF4444'} />
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#F8FAFC' }}>
-                      CONNECTIVITY STATUS
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: isDecoupled ? '#79F2C0' : '#EF4444', fontWeight: 600 }}>
-                    {isDecoupled
-                      ? 'Packet Loss 34% (Environmental) — Flag Suppressed'
-                      : 'Camera UDP Drop Confused for Dishonesty!'}
-                  </div>
-                </div>
               </div>
 
-              {/* Bottom Interactive Evidence Snippet Banner */}
+              {/* Timestamped Evidence Card Snippet */}
               <div
                 style={{
-                  padding: '1.25rem 1.5rem',
-                  backgroundColor: 'rgba(11, 16, 32, 0.95)',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+                  padding: '1.15rem 1.4rem',
+                  backgroundColor: 'rgba(3, 16, 47, 0.95)',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.1)'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: '#79F2C0' }}>
-                      {signals[activeSignalIndex].time}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span className="font-mono" style={{ fontSize: '0.75rem', color: '#18B86A' }}>
+                      {evidenceSignals[activeSignalIndex].time}
                     </span>
-                    <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#F8FAFC' }}>
-                      {signals[activeSignalIndex].label}
+                    <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#FFFFFF' }}>
+                      {evidenceSignals[activeSignalIndex].type}
                     </span>
                   </div>
-                  <span style={{ fontSize: '0.6875rem', color: '#94A3B8' }}>
-                    {signals[activeSignalIndex].metric}
+                  <span style={{ fontSize: '0.6875rem', color: '#8696B2' }}>
+                    {evidenceSignals[activeSignalIndex].detail}
                   </span>
                 </div>
 
                 <div
                   style={{
                     fontSize: '0.8125rem',
-                    padding: '0.6rem 0.85rem',
-                    borderRadius: '6px',
-                    backgroundColor: isDecoupled ? 'rgba(121, 242, 192, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                    border: `1px solid ${isDecoupled ? 'rgba(121, 242, 192, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
-                    color: isDecoupled ? '#CBD5E1' : '#FCA5A5',
+                    padding: '0.55rem 0.8rem',
+                    borderRadius: '5px',
+                    backgroundColor: isDecoupled ? 'rgba(24, 184, 106, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    border: `1px solid ${isDecoupled ? 'rgba(24, 184, 106, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+                    color: isDecoupled ? '#EAF1F7' : '#FCA5A5',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.6rem'
+                    gap: '0.5rem'
                   }}
                 >
-                  {isDecoupled ? <CheckCircle2 size={16} color="#79F2C0" /> : <AlertCircle size={16} color="#EF4444" />}
+                  {isDecoupled ? <CheckCircle2 size={16} color="#18B86A" /> : <AlertCircle size={16} color="#EF4444" />}
                   <span>
                     {isDecoupled
-                      ? `FairProctor verdict: ${signals[activeSignalIndex].fairVerdict}. No candidate penalty.`
-                      : `Legacy verdict: ${signals[activeSignalIndex].legacyVerdict}. Automatic false flag!`}
+                      ? evidenceSignals[activeSignalIndex].fairVerdict
+                      : evidenceSignals[activeSignalIndex].legacyVerdict}
                   </span>
                 </div>
               </div>

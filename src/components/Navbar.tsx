@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Activity, Menu, X, ArrowUpRight } from 'lucide-react';
+import { ShieldCheck, Menu, X, ArrowRight, Activity } from 'lucide-react';
 
 interface NavbarProps {
   onOpenPreTest: () => void;
@@ -19,11 +19,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
   }, []);
 
   const navLinks = [
-    { label: 'Scoring Engine', href: '#scoring-engine' },
-    { label: 'Interactive Demo', href: '#interactive-demo' },
-    { label: 'Multi-Signal', href: '#features' },
-    { label: 'Workflow', href: '#workflow' },
-    { label: 'Ethics & Due Process', href: '#fairness' }
+    { label: 'Platform', href: '#overview' },
+    { label: 'How It Works', href: '#workflow' },
+    { label: 'Features', href: '#features' },
+    { label: 'Fairness', href: '#fairness' },
+    { label: 'Privacy', href: '#privacy' }
   ];
 
   return (
@@ -35,11 +35,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
           left: 0,
           right: 0,
           zIndex: 100,
-          transition: 'all 0.3s ease',
-          backgroundColor: scrolled ? 'rgba(11, 16, 32, 0.92)' : 'rgba(11, 16, 32, 0.4)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderBottom: scrolled ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid transparent'
+          transition: 'all 0.25s ease',
+          backgroundColor: scrolled ? 'rgba(3, 16, 47, 0.96)' : 'rgba(6, 23, 68, 0.85)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
         }}
       >
         <div
@@ -48,10 +48,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            height: '76px'
+            height: '70px'
           }}
         >
-          {/* Brand Logo */}
+          {/* Left: Original FairProctor AI Wordmark with Shield/Check */}
           <a
             href="#"
             style={{
@@ -64,33 +64,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
           >
             <div
               style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '10px',
-                backgroundColor: '#151C35',
-                border: '1px solid rgba(121, 242, 192, 0.3)',
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: '#0E2463',
+                border: '1px solid rgba(24, 184, 106, 0.4)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 0 16px rgba(121, 242, 192, 0.15)'
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
               }}
             >
-              <Shield size={20} color="#79F2C0" />
+              <ShieldCheck size={20} color="#18B86A" />
             </div>
             <div style={{ whiteSpace: 'nowrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 800, fontSize: '1.125rem', letterSpacing: '-0.02em' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ fontWeight: 800, fontSize: '1.15rem', letterSpacing: '-0.025em', color: '#FFFFFF' }}>
                   FairProctor
                 </span>
                 <span
                   style={{
-                    backgroundColor: 'rgba(121, 242, 192, 0.15)',
-                    color: '#79F2C0',
+                    backgroundColor: 'rgba(24, 184, 106, 0.15)',
+                    color: '#18B86A',
                     fontSize: '0.6875rem',
                     fontWeight: 700,
                     padding: '2px 6px',
                     borderRadius: '4px',
-                    border: '1px solid rgba(121, 242, 192, 0.3)'
+                    border: '1px solid rgba(24, 184, 106, 0.35)'
                   }}
                 >
                   AI
@@ -98,26 +98,26 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
               </div>
               <span
                 style={{
-                  fontSize: '0.6875rem',
-                  color: '#94A3B8',
-                  letterSpacing: '0.04em',
+                  fontSize: '0.65rem',
+                  color: '#B8C4D9',
+                  letterSpacing: '0.05em',
                   display: 'block',
-                  lineHeight: 1
+                  lineHeight: 1,
+                  fontWeight: 600
                 }}
               >
-                IM-102 HACKATHON
+                ASSESSMENT INTEGRITY
               </span>
             </div>
           </a>
 
-          {/* Desktop Navigation Links */}
+          {/* Center: Desktop Navigation Links */}
           <nav
             style={{
               display: 'none',
               alignItems: 'center',
-              gap: '1.75rem',
-              margin: '0 auto',
-              padding: '0 1.5rem'
+              gap: '2rem',
+              margin: '0 auto'
             }}
             className="desktop-nav"
           >
@@ -126,7 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
                 key={link.label}
                 href={link.href}
                 style={{
-                  color: '#94A3B8',
+                  color: '#B8C4D9',
                   textDecoration: 'none',
                   fontSize: '0.875rem',
                   fontWeight: 500,
@@ -134,68 +134,39 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
                   transition: 'color 0.2s ease',
                   padding: '0.25rem 0'
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#79F2C0')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#94A3B8')}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#FFFFFF')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#B8C4D9')}
               >
                 {link.label}
               </a>
             ))}
           </nav>
 
-          {/* Right Action Area */}
+          {/* Right: Actions (Diagnostic + Prominent Green "Explore Demo") */}
           <div
             style={{
               display: 'none',
               alignItems: 'center',
-              gap: '0.875rem'
+              gap: '0.85rem'
             }}
             className="desktop-actions"
           >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                fontSize: '0.75rem',
-                color: '#79F2C0',
-                backgroundColor: 'rgba(121, 242, 192, 0.08)',
-                padding: '0.35rem 0.65rem',
-                borderRadius: '9999px',
-                border: '1px solid rgba(121, 242, 192, 0.2)'
-              }}
-            >
-              <span
-                style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  backgroundColor: '#79F2C0',
-                  boxShadow: '0 0 8px #79F2C0'
-                }}
-              />
-              <span style={{ fontWeight: 600 }}>Connectivity Decoupled</span>
-            </div>
-
             <button
               onClick={onOpenPreTest}
-              className="btn btn-secondary btn-sm"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
+              className="btn btn-outline-white btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
             >
-              <Activity size={14} />
-              <span>Diagnostic Check</span>
+              <Activity size={14} color="#79F2C0" />
+              <span>Pre-Test Check</span>
             </button>
 
-            <a
-              href="#interactive-demo"
-              className="btn btn-primary btn-sm"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
-            >
-              <span>Inspect Sessions</span>
-              <ArrowUpRight size={14} />
+            <a href="#interactive-demo" className="btn btn-green btn-sm">
+              <span>Explore Demo</span>
+              <ArrowRight size={14} />
             </a>
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile Burger Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle Navigation Menu"
@@ -203,12 +174,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '42px',
-              height: '42px',
-              borderRadius: '8px',
-              backgroundColor: 'rgba(21, 28, 53, 0.8)',
+              width: '40px',
+              height: '40px',
+              borderRadius: '6px',
+              backgroundColor: '#0E2463',
               border: '1px solid rgba(255, 255, 255, 0.12)',
-              color: '#F8FAFC',
+              color: '#FFFFFF',
               cursor: 'pointer'
             }}
             className="mobile-burger"
@@ -222,35 +193,35 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -15 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+            exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
             style={{
               position: 'fixed',
-              top: '76px',
+              top: '70px',
               left: 0,
               right: 0,
-              backgroundColor: '#0B1020',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: '#03102F',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
               padding: '1.5rem',
               zIndex: 99,
               boxShadow: '0 20px 40px rgba(0,0,0,0.8)'
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {navLinks.map((link) => (
                 <a
                   key={link.label}
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
                   style={{
-                    color: '#F8FAFC',
+                    color: '#FFFFFF',
                     textDecoration: 'none',
-                    fontSize: '1.05rem',
+                    fontSize: '1rem',
                     fontWeight: 600,
                     padding: '0.5rem 0',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.06)'
                   }}
                 >
                   {link.label}
@@ -262,19 +233,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPreTest }) => {
                     setMobileMenuOpen(false);
                     onOpenPreTest();
                   }}
-                  className="btn btn-secondary"
+                  className="btn btn-outline-white"
                   style={{ width: '100%' }}
                 >
-                  <Activity size={16} />
+                  <Activity size={16} color="#79F2C0" />
                   <span>Run Pre-Test Check</span>
                 </button>
                 <a
                   href="#interactive-demo"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="btn btn-primary"
+                  className="btn btn-green"
                   style={{ width: '100%', textAlign: 'center' }}
                 >
-                  Inspect Live Sessions
+                  Explore Demo
                 </a>
               </div>
             </div>

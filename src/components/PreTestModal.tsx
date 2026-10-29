@@ -25,7 +25,7 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
         }
         return prev + 1;
       });
-    }, 600);
+    }, 550);
   };
 
   if (!isOpen) return null;
@@ -39,9 +39,9 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(7, 11, 22, 0.85)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
+          backgroundColor: 'rgba(3, 16, 47, 0.88)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -51,17 +51,17 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
         onClick={onClose}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ duration: 0.25 }}
+          exit={{ opacity: 0, scale: 0.96, y: 12 }}
+          transition={{ duration: 0.22 }}
           onClick={(e) => e.stopPropagation()}
-          className="card-indigo"
+          className="card-navy"
           style={{
             width: '100%',
             maxWidth: '620px',
-            backgroundColor: '#0E1428',
-            border: '1px solid rgba(121, 242, 192, 0.3)',
+            backgroundColor: '#061744',
+            border: '1px solid rgba(24, 184, 106, 0.35)',
             boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)',
             overflow: 'hidden'
           }}
@@ -70,20 +70,20 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
           <div
             style={{
               padding: '1.25rem 1.5rem',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: '#0B1020'
+              backgroundColor: '#03102F'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <Smartphone size={20} color="#79F2C0" />
+              <Smartphone size={20} color="#18B86A" />
               <div>
-                <h3 style={{ fontSize: '1.1rem', color: '#FFFFFF', margin: 0 }}>
+                <h3 style={{ fontSize: '1.1rem', color: '#FFFFFF', margin: 0, fontWeight: 700 }}>
                   Pre-Test Environmental Diagnostics
                 </h3>
-                <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
+                <span style={{ fontSize: '0.75rem', color: '#B8C4D9' }}>
                   Simulated Candidate Readiness Suite (Mobile & Desktop)
                 </span>
               </div>
@@ -95,7 +95,7 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#94A3B8',
+                color: '#B8C4D9',
                 cursor: 'pointer',
                 padding: '0.25rem'
               }}
@@ -106,7 +106,7 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
 
           {/* Diagnostic Checks Body */}
           <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <p style={{ fontSize: '0.875rem', color: '#CBD5E1', margin: 0 }}>
+            <p style={{ fontSize: '0.875rem', color: '#B8C4D9', margin: 0, lineHeight: 1.55 }}>
               The pre-test system establishes individual candidate baselines for ambient lighting, microphone noise
               floors, and uplink jitter so environmental variations are never flagged as suspicious behaviour.
             </p>
@@ -120,13 +120,13 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
                     key={metric.id}
                     style={{
                       padding: '0.85rem 1rem',
-                      borderRadius: '8px',
-                      backgroundColor: 'rgba(21, 28, 53, 0.6)',
+                      borderRadius: '6px',
+                      backgroundColor: '#0A1E54',
                       border: '1px solid rgba(255, 255, 255, 0.08)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      opacity: isFinished ? 1 : 0.4,
+                      opacity: isFinished ? 1 : 0.45,
                       transition: 'opacity 0.2s ease'
                     }}
                   >
@@ -135,41 +135,41 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
                         style={{
                           width: '32px',
                           height: '32px',
-                          borderRadius: '8px',
-                          backgroundColor: '#151C35',
+                          borderRadius: '6px',
+                          backgroundColor: '#061744',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           border: '1px solid rgba(255, 255, 255, 0.1)'
                         }}
                       >
-                        {metric.id === 'cam' && <Camera size={16} color="#79F2C0" />}
-                        {metric.id === 'light' && <Sun size={16} color="#79F2C0" />}
+                        {metric.id === 'cam' && <Camera size={16} color="#18B86A" />}
+                        {metric.id === 'light' && <Sun size={16} color="#18B86A" />}
                         {metric.id === 'net' && <Wifi size={16} color="#F59E0B" />}
-                        {metric.id === 'sandbox' && <ShieldCheck size={16} color="#79F2C0" />}
+                        {metric.id === 'sandbox' && <ShieldCheck size={16} color="#18B86A" />}
                       </div>
 
                       <div>
-                        <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#F8FAFC' }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#FFFFFF' }}>
                           {metric.name}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>{metric.details}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#B8C4D9' }}>{metric.details}</div>
                       </div>
                     </div>
 
                     <div>
                       {isFinished ? (
                         metric.status === 'passed' ? (
-                          <span className="badge badge-mint" style={{ fontSize: '0.6875rem' }}>
+                          <span className="badge badge-green" style={{ fontSize: '0.65rem' }}>
                             Optimal
                           </span>
                         ) : (
-                          <span className="badge badge-warning" style={{ fontSize: '0.6875rem' }}>
+                          <span className="badge badge-warning" style={{ fontSize: '0.65rem' }}>
                             Adaptive Buffer
                           </span>
                         )
                       ) : (
-                        <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Evaluating...</span>
+                        <span style={{ fontSize: '0.75rem', color: '#8696B2' }}>Evaluating...</span>
                       )}
                     </div>
                   </div>
@@ -177,21 +177,21 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
               })}
             </div>
 
-            {/* Baseline Summary Pill */}
+            {/* Baseline Summary Callout */}
             <div
               style={{
-                backgroundColor: 'rgba(121, 242, 192, 0.08)',
-                border: '1px solid rgba(121, 242, 192, 0.2)',
-                borderRadius: '8px',
+                backgroundColor: 'rgba(24, 184, 106, 0.1)',
+                border: '1px solid rgba(24, 184, 106, 0.25)',
+                borderRadius: '6px',
                 padding: '0.75rem 1rem',
                 fontSize: '0.8125rem',
-                color: '#79F2C0',
+                color: '#EAF1F7',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem'
               }}
             >
-              <CheckCircle2 size={16} color="#79F2C0" />
+              <CheckCircle2 size={16} color="#18B86A" />
               <span>
                 Baseline calibrated: Low-bandwidth adaptive profile established. Video drop tolerance set to 1,200ms.
               </span>
@@ -202,8 +202,8 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
           <div
             style={{
               padding: '1rem 1.5rem',
-              backgroundColor: '#0B1020',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              backgroundColor: '#03102F',
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
@@ -212,14 +212,14 @@ export const PreTestModal: React.FC<PreTestModalProps> = ({ isOpen, onClose }) =
             <button
               onClick={handleRerun}
               disabled={isRunning}
-              className="btn btn-secondary btn-sm"
+              className="btn btn-outline-white btn-sm"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
-              <RefreshCw size={14} className={isRunning ? 'spin' : ''} />
+              <RefreshCw size={13} className={isRunning ? 'spin' : ''} />
               <span>{isRunning ? 'Running Diagnostic...' : 'Re-run Diagnostic Suite'}</span>
             </button>
 
-            <button onClick={onClose} className="btn btn-primary btn-sm">
+            <button onClick={onClose} className="btn btn-green btn-sm">
               <span>Ready for Assessment</span>
             </button>
           </div>

@@ -71,6 +71,7 @@
 ### Prerequisites
 - Node.js `v20+` or `v22+`
 - npm `10+`
+- MongoDB `v6+` or `v7+` (running on `mongodb://127.0.0.1:27017` or configured via `MONGODB_URI` in `.env`. Note: If MongoDB is not active, the backend automatically operates using a persistent local JSON store in `server/data/users.json`).
 
 ### Installation
 ```bash
@@ -80,14 +81,54 @@ cd FairProctor-AI
 
 # Install dependencies
 npm install
+
+# Copy environment configuration template
+cp .env.example .env
 ```
 
 ### Running Locally
 ```bash
-# Start Vite development server
+# Terminal 1: Start Express Authentication & RBAC Backend (Port 5000)
+npm run server
+
+# Terminal 2: Start Vite Frontend (Port 5173, proxied to port 5000)
 npm run dev
 ```
 Open [http://localhost:5173/](http://localhost:5173/) in your browser.
+
+---
+
+## 🔐 Authentication & Access Control (RBAC)
+
+FairProctor AI includes an enterprise authentication and server-enforced role-based access control system:
+
+### Verified Demo Accounts
+The database automatically seeds 3 verified accounts on first launch:
+- **Administrator:** `admin@fairproctor.ai` / `Admin@FairProctor2026!` (Full user management & governance)
+- **Reviewer:** `reviewer@fairproctor.ai` / `Reviewer@FairProctor2026!` (Triage queue, evidence inspector, live verdicts)
+- **Candidate:** `candidate@fairproctor.ai` / `Candidate@FairProctor2026!` (Exam readiness, hardware pre-test, due process appeal)
+
+### Role-Based Access Control
+- **Candidate:** Access to candidate diagnostic verification, active exam readiness, and due process appeal submission. Public registration strictly defaults to Candidate.
+- **Reviewer:** Access to reviewer triage queue, decoupled risk metrics (Behavioral Risk vs Environmental Stability), cryptographic audit trail, and reviewer verdicts.
+- **Admin:** Access to user registry, live role promotion/demotion, account activation/suspension, system infrastructure inspection, and tamper-evident audit logs.
+
+### Security Guarantees
+- **Password Security:** Salted and hashed using `bcrypt` (12 rounds); plain-text passwords are never stored.
+- **Session Security:** Short-lived JWT access tokens (15m) + secure refresh tokens (30d for remember-me, 1d default) stored in `HttpOnly`, `SameSite=Lax`, `Secure-in-production` cookies with Bearer token fallback.
+- **CSRF Protection:** State-changing requests (`POST`, `PUT`, `PATCH`, `DELETE`) are guarded with cryptographically secure double-submit tokens.
+- **Zero Email Enumeration:** Password recovery and login errors use constant-time comparison and privacy-preserving responses.
+- **Password Recovery:** Time-limited (15 minutes), single-use cryptographic tokens hashed with SHA-256 before database storage.
+- **Rate Limiting:** Failed logins throttled to 5 attempts per 15-minute window per IP to stop brute-force attacks.
+
+### Running Automated Test Suites
+```bash
+# Run unit & cryptographic hashing tests
+npm run test:auth
+
+# Run complete 21-point end-to-end integration test suite
+npm run test:e2e
+```
 
 ### Building for Production
 ```bash
@@ -102,3 +143,4 @@ npm run preview
 ```bash
 npm run lint
 ```
+

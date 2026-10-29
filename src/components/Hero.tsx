@@ -43,11 +43,11 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
 
       <div className="container" style={{ position: 'relative', zIndex: 1 }}>
         <div
+          className="hero-grid"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '3.5rem',
-            alignItems: 'center'
+            alignItems: 'center',
+            width: '100%'
           }}
         >
           {/* Left: Headline, Subtitle, 2 CTAs */}
@@ -55,6 +55,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            style={{ width: '100%', maxWidth: '540px' }}
           >
             {/* Headline */}
             <h1
@@ -77,7 +78,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                 fontSize: 'clamp(1.05rem, 1.3vw, 1.2rem)',
                 color: '#475467',
                 lineHeight: 1.6,
-                maxWidth: '520px',
+                maxWidth: '500px',
                 marginBottom: '2rem'
               }}
             >
@@ -106,7 +107,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
             </div>
           </motion.div>
 
-          {/* Right: FairProctor AI Hero Visualization */}
+          {/* Right: FairProctor AI Hero Visualization (50-55% width, centered, text-free) */}
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -121,12 +122,12 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
           >
             <img
               src={heroImage}
-              alt="FairProctor AI - Secure Exams for a Fair Future"
+              alt="FairProctor AI Proctoring Dashboard"
               style={{
                 width: '100%',
-                maxWidth: '620px',
+                maxWidth: '720px',
                 height: 'auto',
-                aspectRatio: '2 / 1',
+                aspectRatio: '16 / 9',
                 objectFit: 'contain',
                 display: 'block'
               }}
@@ -134,6 +135,19 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
           </motion.div>
         </div>
       </div>
+
+      <style>{`
+        .hero-grid {
+          grid-template-columns: 1fr;
+          gap: 2.75rem;
+        }
+        @media (min-width: 992px) {
+          .hero-grid {
+            grid-template-columns: 46% 54% !important;
+            gap: 2.5rem !important;
+          }
+        }
+      `}</style>
     </section>
   );
 };

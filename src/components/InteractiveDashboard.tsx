@@ -4,12 +4,10 @@ import {
   UserCheck,
   Filter,
   CheckCircle,
-  Info,
-  Sparkles,
   FileCheck2
 } from 'lucide-react';
 import { MOCK_SESSIONS } from '../data/mockData';
-import type { CandidateSession, EvidenceEvent } from '../types';
+import type { CandidateSession } from '../types';
 
 interface InteractiveDashboardProps {
   onOpenAppealModal?: (session: CandidateSession) => void;
@@ -20,9 +18,9 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
   const [selectedEventId, setSelectedEventId] = useState<string>(MOCK_SESSIONS[0].timeline[1].id);
   const [verdicts, setVerdicts] = useState<Record<string, string>>({
-    [MOCK_SESSIONS[0].id]: 'Auto-Cleared: Environmental Latency Suppressed',
-    [MOCK_SESSIONS[1].id]: 'Review: Sanctioned Formula PDF Verified',
-    [MOCK_SESSIONS[2].id]: 'Escalated: High-Volume Paste Audit'
+    [MOCK_SESSIONS[0].id]: 'Auto-Cleared',
+    [MOCK_SESSIONS[1].id]: 'Review Required',
+    [MOCK_SESSIONS[2].id]: 'Escalated'
   });
 
   const currentSession =
@@ -32,10 +30,6 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
     if (activeCategoryFilter === 'all') return true;
     return event.category === activeCategoryFilter;
   });
-
-  const activeEvent: EvidenceEvent =
-    currentSession.timeline.find((ev) => ev.id === selectedEventId) ||
-    currentSession.timeline[0];
 
   const handleApplyVerdict = (verdictText: string) => {
     setVerdicts((prev) => ({
@@ -49,14 +43,13 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
       id="interactive-demo"
       style={{
         padding: '85px 0',
-        position: 'relative',
         backgroundColor: '#FFFFFF',
         borderTop: '1px solid #E4E7EC'
       }}
     >
       <div className="container">
         {/* Section Header */}
-        <div style={{ textAlign: 'center', maxWidth: '720px', margin: '0 auto 2.5rem auto' }}>
+        <div style={{ textAlign: 'center', maxWidth: '640px', margin: '0 auto 2.5rem auto' }}>
           <h2
             style={{
               fontSize: 'clamp(1.9rem, 3.2vw, 2.75rem)',
@@ -68,54 +61,40 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
             Reviewer triage dashboard.
           </h2>
           <p style={{ fontSize: '1rem', color: '#475467', lineHeight: 1.55, margin: 0 }}>
-            Audit multi-signal telemetry with explainable reasoning. Select a session below to inspect live records.
+            Audit multi-signal telemetry with explainable reasoning. Select a candidate to inspect events.
           </p>
-
-          {/* Compact Demo Notice */}
-          <div
-            style={{
-              marginTop: '1rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              fontSize: '0.75rem',
-              color: '#667085'
-            }}
-          >
-            <Info size={14} color="#16A765" />
-            <span>Illustrative demo data · Risk scores are advisory for educators</span>
-          </div>
         </div>
 
         {/* Dashboard Shell Container */}
         <div
-          className="card-white"
           style={{
-            overflow: 'hidden',
+            backgroundColor: '#FFFFFF',
             border: '1px solid #E4E7EC',
-            boxShadow: '0 12px 32px rgba(16, 24, 40, 0.08)'
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px -2px rgba(16, 24, 40, 0.05)',
+            overflow: 'hidden'
           }}
         >
-          {/* Top Bar: Session Info & Ranked Queue */}
+          {/* Top Bar: Candidate Header & Queue */}
           <div
             style={{
-              backgroundColor: '#F7F9FC',
+              padding: '1rem 1.5rem',
               borderBottom: '1px solid #E4E7EC',
-              padding: '0.85rem 1.25rem',
+              backgroundColor: '#F7F9FC',
               display: 'flex',
               flexWrap: 'wrap',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '0.85rem'
+              gap: '1rem'
             }}
           >
-            {/* Session Info */}
+            {/* Candidate Identity */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div
                 style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '6px',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
                   backgroundColor: '#E8F8EF',
                   border: '1px solid rgba(22, 167, 101, 0.3)',
                   display: 'flex',
@@ -129,19 +108,19 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                 {currentSession.candidateInitials}
               </div>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#101828' }}>
                     {currentSession.candidateName}
                   </span>
                   <span
                     className="font-mono"
                     style={{
-                      fontSize: '0.7rem',
-                      color: '#16A765',
-                      backgroundColor: '#E8F8EF',
+                      fontSize: '0.6875rem',
+                      color: '#667085',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E4E7EC',
                       padding: '1px 6px',
-                      borderRadius: '3px',
-                      border: '1px solid rgba(22, 167, 101, 0.25)'
+                      borderRadius: '4px'
                     }}
                   >
                     {currentSession.id}
@@ -153,10 +132,10 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
               </div>
             </div>
 
-            {/* Session Queue Switcher */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.75rem', color: '#667085', fontWeight: 700 }}>
-                QUEUE:
+            {/* Candidate Queue Switcher */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.75rem', color: '#667085', fontWeight: 600, marginRight: '0.25rem' }}>
+                Queue:
               </span>
               {MOCK_SESSIONS.map((sess) => {
                 const isSelected = sess.id === currentSession.id;
@@ -168,14 +147,15 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                       setSelectedEventId(sess.timeline[0]?.id || '');
                     }}
                     style={{
-                      backgroundColor: isSelected ? '#E8F8EF' : '#FFFFFF',
+                      backgroundColor: isSelected ? '#FFFFFF' : 'transparent',
                       border: `1px solid ${isSelected ? '#16A765' : '#E4E7EC'}`,
-                      color: isSelected ? '#101828' : '#475467',
+                      boxShadow: isSelected ? '0 1px 3px rgba(16, 24, 40, 0.06)' : 'none',
+                      color: isSelected ? '#101828' : '#667085',
                       padding: '0.35rem 0.65rem',
-                      borderRadius: '5px',
+                      borderRadius: '6px',
                       cursor: 'pointer',
                       fontSize: '0.75rem',
-                      fontWeight: 600,
+                      fontWeight: isSelected ? 700 : 500,
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.35rem',
@@ -196,7 +176,7 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                       }}
                     />
                     <span>{sess.candidateName.split(' ')[0]}</span>
-                    <span style={{ opacity: 0.8 }}>({sess.integrityRiskScore})</span>
+                    <span style={{ opacity: 0.75 }}>({sess.integrityRiskScore})</span>
                   </button>
                 );
               })}
@@ -207,37 +187,27 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(260px, 300px) 1fr',
-              minHeight: '520px'
+              gridTemplateColumns: '280px 1fr'
             }}
             className="dashboard-columns"
           >
-            {/* Left Sidebar: Scores & Actions */}
+            {/* Left Sidebar: Score, Meters, Actions */}
             <div
               style={{
                 backgroundColor: '#F7F9FC',
                 borderRight: '1px solid #E4E7EC',
-                padding: '1.25rem',
+                padding: '1.5rem',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '1.25rem'
+                gap: '1.5rem'
               }}
             >
               {/* Risk Score */}
-              <div
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: '8px',
-                  padding: '1rem',
-                  textAlign: 'center',
-                  border: '1px solid #E4E7EC',
-                  boxShadow: '0 1px 3px rgba(16, 24, 40, 0.04)'
-                }}
-              >
-                <div style={{ fontSize: '0.6875rem', color: '#667085', textTransform: 'uppercase', fontWeight: 600 }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: '#667085', textTransform: 'uppercase', fontWeight: 600 }}>
                   Risk Score
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.25rem', margin: '0.35rem 0' }}>
+                </span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', margin: '0.25rem 0 0.4rem 0' }}>
                   <span
                     style={{
                       fontSize: '2.5rem',
@@ -253,12 +223,12 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                   >
                     {currentSession.integrityRiskScore}
                   </span>
-                  <span style={{ fontSize: '0.85rem', color: '#667085' }}>/ 100</span>
+                  <span style={{ fontSize: '0.875rem', color: '#667085' }}>/ 100</span>
                 </div>
                 <div
                   style={{
                     fontSize: '0.75rem',
-                    fontWeight: 700,
+                    fontWeight: 600,
                     color:
                       currentSession.integrityRiskScore < 25
                         ? '#16A765'
@@ -276,12 +246,12 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
               </div>
 
               {/* Decoupled Indicators */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {/* Behavioural Risk */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '8px', padding: '0.75rem', border: '1px solid #E4E7EC' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Behavioural Risk Meter */}
+                <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.8125rem' }}>
                     <span style={{ color: '#101828', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <UserCheck size={13} color="#16A765" />
+                      <UserCheck size={14} color="#16A765" />
                       Behavioural Risk
                     </span>
                     <span style={{ fontWeight: 700, color: '#101828' }}>{currentSession.behaviouralRiskScore}%</span>
@@ -302,11 +272,11 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                   </div>
                 </div>
 
-                {/* Environmental Stability */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '8px', padding: '0.75rem', border: '1px solid #E4E7EC' }}>
+                {/* Network Stability Meter */}
+                <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.8125rem' }}>
                     <span style={{ color: '#101828', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Wifi size={13} color={currentSession.environmentalQualityScore < 50 ? '#F59E0B' : '#16A765'} />
+                      <Wifi size={14} color={currentSession.environmentalQualityScore < 50 ? '#F59E0B' : '#16A765'} />
                       Network Stability
                     </span>
                     <span style={{ fontWeight: 700, color: '#101828' }}>{currentSession.environmentalQualityScore}%</span>
@@ -326,59 +296,72 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                 </div>
               </div>
 
-              {/* Reviewer Action Verdict */}
-              <div style={{ marginTop: 'auto', borderTop: '1px solid #E4E7EC', paddingTop: '0.85rem' }}>
-                <div style={{ fontSize: '0.75rem', color: '#16A765', backgroundColor: '#E8F8EF', border: '1px solid rgba(22, 167, 101, 0.25)', padding: '0.45rem', borderRadius: '4px', marginBottom: '0.65rem', lineHeight: 1.35, fontWeight: 600 }}>
-                  {verdicts[currentSession.id]}
+              {/* Status Verdict & Essential Actions */}
+              <div style={{ marginTop: 'auto', borderTop: '1px solid #E4E7EC', paddingTop: '1.25rem' }}>
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: '#16A765',
+                    backgroundColor: '#E8F8EF',
+                    border: '1px solid rgba(22, 167, 101, 0.25)',
+                    padding: '0.4rem 0.6rem',
+                    borderRadius: '5px',
+                    marginBottom: '0.75rem',
+                    fontWeight: 600,
+                    textAlign: 'center'
+                  }}
+                >
+                  Status: {verdicts[currentSession.id]}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <button
-                    onClick={() => handleApplyVerdict('Dismissed: Confirmed Network Interruption')}
+                    onClick={() => handleApplyVerdict('Dismissed')}
                     className="btn btn-outline-white btn-sm"
-                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    style={{ width: '100%', justifyContent: 'center' }}
                   >
-                    <CheckCircle size={13} color="#16A765" />
-                    <span>Dismiss as Environmental</span>
+                    <CheckCircle size={14} color="#16A765" />
+                    <span>Dismiss</span>
                   </button>
+
                   <button
                     onClick={() => {
                       if (onOpenAppealModal) onOpenAppealModal(currentSession);
-                      handleApplyVerdict('Awaiting Candidate Response (48h Window)');
+                      handleApplyVerdict('Awaiting Statement');
                     }}
-                    className="btn btn-outline-white btn-sm"
-                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    className="btn btn-green btn-sm"
+                    style={{ width: '100%', justifyContent: 'center' }}
                   >
-                    <FileCheck2 size={13} color="#16A765" />
+                    <FileCheck2 size={14} />
                     <span>Request Statement</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Right: Timeline & Deep Inspector */}
-            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', backgroundColor: '#FFFFFF' }}>
+            {/* Right: Clean Event Timeline */}
+            <div style={{ padding: '1.5rem', backgroundColor: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {/* Category Filter Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', borderBottom: '1px solid #E4E7EC', paddingBottom: '0.65rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#475467', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #E4E7EC', paddingBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#667085', fontWeight: 600 }}>
                   <Filter size={13} />
-                  <span>Filters:</span>
+                  <span>Filter:</span>
                 </div>
-                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
                   {[
                     { id: 'all', label: 'All' },
                     { id: 'environmental', label: 'Environmental' },
-                    { id: 'behavioural', label: 'Behavioural' },
-                    { id: 'client', label: 'DOM / Window' }
+                    { id: 'behavioural', label: 'Behavioural' }
                   ].map((cat) => (
                     <button
                       key={cat.id}
                       onClick={() => setActiveCategoryFilter(cat.id)}
                       style={{
-                        backgroundColor: activeCategoryFilter === cat.id ? '#16A765' : '#F7F9FC',
-                        color: activeCategoryFilter === cat.id ? '#FFFFFF' : '#475467',
+                        backgroundColor: activeCategoryFilter === cat.id ? '#E8F8EF' : '#FFFFFF',
+                        color: activeCategoryFilter === cat.id ? '#16A765' : '#475467',
                         border: `1px solid ${activeCategoryFilter === cat.id ? '#16A765' : '#E4E7EC'}`,
-                        borderRadius: '4px',
-                        padding: '0.25rem 0.55rem',
+                        borderRadius: '5px',
+                        padding: '0.25rem 0.65rem',
                         fontSize: '0.75rem',
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -391,81 +374,77 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                 </div>
               </div>
 
-              {/* Timeline Items */}
+              {/* Simplified Event Rows */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {filteredEvents.map((event) => {
-                  const isSelected = event.id === activeEvent.id;
+                  const isSelected = event.id === selectedEventId;
                   return (
                     <div
                       key={event.id}
                       onClick={() => setSelectedEventId(event.id)}
                       style={{
-                        padding: '0.75rem 0.9rem',
+                        padding: '0.75rem 1rem',
                         borderRadius: '6px',
                         backgroundColor: isSelected ? '#F7F9FC' : '#FFFFFF',
                         border: `1px solid ${isSelected ? '#16A765' : '#E4E7EC'}`,
-                        cursor: 'pointer',
-                        display: 'grid',
-                        gridTemplateColumns: '72px 1fr auto',
-                        gap: '0.85rem',
+                        display: 'flex',
                         alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '1rem',
+                        cursor: 'pointer',
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      <div className="font-mono" style={{ fontSize: '0.75rem', color: '#16A765', fontWeight: 600 }}>
-                        {event.timestamp}
-                      </div>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: '#101828' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                        <span className="font-mono" style={{ fontSize: '0.75rem', color: '#16A765', fontWeight: 600, minWidth: '60px' }}>
+                          {event.timestamp}
+                        </span>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: '#101828' }}>
                             {event.title}
-                          </span>
-                          {event.isSuppressed && (
-                            <span style={{ fontSize: '0.625rem', fontWeight: 700, backgroundColor: '#E8F8EF', color: '#16A765', border: '1px solid rgba(22, 167, 101, 0.25)', padding: '1px 5px', borderRadius: '3px' }}>
-                              SUPPRESSED
-                            </span>
-                          )}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#475467' }}>
+                            {event.description}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#475467' }}>{event.description}</div>
                       </div>
-                      <span className={`badge ${event.category === 'environmental' ? 'badge-warning' : 'badge-green'}`} style={{ fontSize: '0.625rem' }}>
-                        {event.category}
+
+                      {/* Short Status Label */}
+                      <span
+                        style={{
+                          fontSize: '0.6875rem',
+                          fontWeight: 700,
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          flexShrink: 0,
+                          backgroundColor:
+                            event.isSuppressed || event.category === 'environmental'
+                              ? '#E8F8EF'
+                              : event.severity === 'medium' || event.severity === 'high'
+                              ? '#FEF3C7'
+                              : '#F0F9FF',
+                          color:
+                            event.isSuppressed || event.category === 'environmental'
+                              ? '#16A765'
+                              : event.severity === 'medium' || event.severity === 'high'
+                              ? '#B45309'
+                              : '#0284C7',
+                          border: `1px solid ${
+                            event.isSuppressed || event.category === 'environmental'
+                              ? 'rgba(22, 167, 101, 0.3)'
+                              : event.severity === 'medium' || event.severity === 'high'
+                              ? '#FCD34D'
+                              : '#BAE6FD'
+                          }`
+                        }}
+                      >
+                        {event.isSuppressed ? 'Suppressed' : event.category}
                       </span>
                     </div>
                   );
                 })}
-              </div>
-
-              {/* Explainable Rationale Box */}
-              <div
-                style={{
-                  backgroundColor: '#F7F9FC',
-                  border: '1px solid #E4E7EC',
-                  borderRadius: '8px',
-                  padding: '1rem'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', fontWeight: 700, color: '#101828' }}>
-                    <Sparkles size={14} color="#16A765" />
-                    <span>Signal Rationale: {activeEvent.title}</span>
-                  </div>
-                  <span className="font-mono" style={{ fontSize: '0.6875rem', color: '#667085' }}>{activeEvent.id}</span>
-                </div>
-
-                {/* Metrics */}
-                <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.65rem' }}>
-                  {activeEvent.metrics.map((m, i) => (
-                    <div key={i} style={{ backgroundColor: '#FFFFFF', border: '1px solid #E4E7EC', padding: '0.35rem 0.65rem', borderRadius: '4px', fontSize: '0.75rem' }}>
-                      <span style={{ color: '#667085' }}>{m.label}: </span>
-                      <strong style={{ color: '#16A765' }}>{m.value}</strong>
-                    </div>
-                  ))}
-                </div>
-
-                <p style={{ fontSize: '0.8125rem', color: '#475467', margin: 0, lineHeight: 1.5 }}>
-                  {activeEvent.aiRationale}
-                </p>
               </div>
             </div>
           </div>

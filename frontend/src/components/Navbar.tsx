@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Sun, Moon, UserCheck, GraduationCap, LayoutDashboard } from 'lucide-react';
+import { Shield, Sun, Moon, UserCheck, GraduationCap, LayoutDashboard, Globe } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useProctorRole } from '../context/ProctorRoleContext';
 import { ReviewerRole } from '../types/proctoring';
@@ -8,8 +8,8 @@ interface Props {
   isBackendHealthy: boolean;
   modelVersion?: string;
   onRefreshHealth: () => void;
-  appMode: 'reviewer' | 'candidate';
-  onToggleAppMode: (mode: 'reviewer' | 'candidate') => void;
+  appMode: 'landing' | 'reviewer' | 'candidate';
+  onToggleAppMode: (mode: 'landing' | 'reviewer' | 'candidate') => void;
 }
 
 export const Navbar: React.FC<Props> = ({
@@ -35,12 +35,16 @@ export const Navbar: React.FC<Props> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md transition-colors">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         
         {/* Brand */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-teal-500/20">
+        <div
+          onClick={() => onToggleAppMode('landing')}
+          className="flex items-center gap-3 cursor-pointer group"
+          title="Go to FairProctor AI Landing Page"
+        >
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-teal-500/20 group-hover:scale-105 transition-transform">
             <Shield className="w-5 h-5 stroke-[2.5]" />
           </div>
           <div>
@@ -53,37 +57,51 @@ export const Navbar: React.FC<Props> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {appMode === 'candidate' ? 'Candidate Examination Portal' : 'Examination Integrity & Fairness Reviewer'}
+              {appMode === 'candidate'
+                ? 'Candidate Examination Portal'
+                : appMode === 'landing'
+                ? 'Enterprise Landing Page'
+                : 'Examination Integrity & Fairness Reviewer'}
             </p>
           </div>
         </div>
 
         {/* Portal Switcher Pill */}
-        <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium">
+        <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-medium">
+          <button
+            onClick={() => onToggleAppMode('landing')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+              appMode === 'landing'
+                ? 'bg-white text-teal-600 shadow-sm font-semibold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Landing</span>
+          </button>
+
           <button
             onClick={() => onToggleAppMode('reviewer')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
               appMode === 'reviewer'
-                ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm font-semibold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'bg-white text-teal-600 shadow-sm font-semibold'
+                : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             <LayoutDashboard className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Reviewer Dashboard</span>
-            <span className="sm:hidden">Reviewer</span>
+            <span>Reviewer</span>
           </button>
 
           <button
             onClick={() => onToggleAppMode('candidate')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
               appMode === 'candidate'
-                ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm font-semibold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'bg-white text-teal-600 shadow-sm font-semibold'
+                : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Candidate Exam</span>
-            <span className="sm:hidden">Exam</span>
+            <span>Candidate</span>
           </button>
         </div>
 
@@ -108,46 +126,32 @@ export const Navbar: React.FC<Props> = ({
 
           {/* Active Reviewer Role Switcher (Visible in reviewer mode) */}
           {appMode === 'reviewer' && (
-            <div className="hidden lg:flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
-              <UserCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-              <span className="text-slate-500 dark:text-slate-400">Role:</span>
+            <div className="hidden lg:flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs">
+              <UserCheck className="w-3.5 h-3.5 text-teal-600" />
+              <span className="text-slate-500">Role:</span>
               <select
                 value={activeRole}
                 onChange={handleRoleChange}
-                className="bg-transparent font-medium text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer text-xs"
+                className="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer text-xs"
               >
-                <option value="lead_proctor" className="bg-white dark:bg-slate-900">
+                <option value="lead_proctor" className="bg-white">
                   Lead Proctor
                 </option>
-                <option value="reviewer" className="bg-white dark:bg-slate-900">
+                <option value="reviewer" className="bg-white">
                   Reviewer
                 </option>
-                <option value="auditor" className="bg-white dark:bg-slate-900">
+                <option value="auditor" className="bg-white">
                   Auditor
                 </option>
               </select>
               {isLeadProctor && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-semibold">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold">
                   Auth
                 </span>
               )}
             </div>
           )}
-
-          {/* Dark / Light Mode Toggle */}
-          <button
-            onClick={toggleTheme}
-            aria-label="Toggle dark/light mode"
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4 text-amber-400" />
-            ) : (
-              <Moon className="w-4 h-4 text-slate-700" />
-            )}
-          </button>
         </div>
-
       </div>
     </header>
   );

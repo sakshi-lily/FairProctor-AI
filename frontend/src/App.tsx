@@ -20,6 +20,7 @@ import {
 } from './api/client';
 import { CandidatePortal } from './candidate/CandidatePortal';
 import { MobileEnvironmentCheckPage } from './candidate/MobileEnvironmentCheckPage';
+import { LandingPage } from './landing/LandingPage';
 import {
   OverviewStats,
   ReviewDecisionType,
@@ -34,12 +35,18 @@ import {
 
 const DashboardInner: React.FC = () => {
   const { activeRole, reviewerId } = useProctorRole();
-  const [appMode, setAppMode] = useState<'reviewer' | 'candidate' | 'mobile_check'>(() => {
+  const [appMode, setAppMode] = useState<'landing' | 'reviewer' | 'candidate' | 'mobile_check'>(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'mobile_check' || params.get('pairing_token') || params.get('token')) {
       return 'mobile_check';
     }
-    return 'reviewer';
+    if (params.get('mode') === 'candidate') {
+      return 'candidate';
+    }
+    if (params.get('mode') === 'reviewer') {
+      return 'reviewer';
+    }
+    return 'landing';
   });
   const [activePage, setActivePage] = useState<PageId>('overview');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -245,7 +252,7 @@ const DashboardInner: React.FC = () => {
   const envCount = sessions.reduce((acc, s) => acc + s.environmental_warnings_count, 0);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors">
+    <div className="min-h-screen flex flex-col bg-slate-50">
       
       {/* Mode 0: Mobile Environment Check Page (Dedicated Mobile Route) */}
       {appMode === 'mobile_check' && (
@@ -257,8 +264,17 @@ const DashboardInner: React.FC = () => {
         />
       )}
 
+      {/* Mode 1: Enterprise Landing Page */}
+      {appMode === 'landing' && (
+        <LandingPage
+          onNavigateToReviewer={() => setAppMode('reviewer')}
+          onNavigateToCandidate={() => setAppMode('candidate')}
+          onNavigateToMobileCheck={() => setAppMode('mobile_check')}
+        />
+      )}
+
       {/* Desktop Views (Reviewer Dashboard or Candidate Portal) */}
-      {appMode !== 'mobile_check' && (
+      {appMode !== 'mobile_check' && appMode !== 'landing' && (
         <>
           {/* Top Navbar */}
           <Navbar
@@ -352,18 +368,18 @@ const DashboardInner: React.FC = () => {
             )}
 
           </main>
+
+          {/* Accessible Footer for Reviewer / Candidate Views */}
+          <footer className="border-t border-slate-200 bg-white py-4 px-4 text-center text-xs text-slate-500">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+              <span>FairProctor-AI &middot; Explainable Decision-Support Proctoring &middot; Visual Model v2.0.0</span>
+              <span>Policy IM-102: Proctoring That Does Not Punish a Shared Room</span>
+            </div>
+          </footer>
         </>
       )}
       </>
       )}
-
-      {/* Accessible Footer */}
-      <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-4 px-4 text-center text-xs text-slate-500 dark:text-slate-400">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>FairProctor-AI &middot; Explainable Decision-Support Proctoring &middot; Visual Model v2.0.0</span>
-          <span>Policy IM-102: Proctoring That Does Not Punish a Shared Room</span>
-        </div>
-      </footer>
 
     </div>
   );

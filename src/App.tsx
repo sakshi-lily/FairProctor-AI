@@ -26,7 +26,7 @@ export function App() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Slim Professional Navigation Bar */}
-      <Navbar onOpenPreTest={() => setIsPreTestOpen(true)} />
+      <Navbar />
 
       {/* Main Content Sections */}
       <main style={{ flex: 1 }}>
@@ -34,7 +34,6 @@ export function App() {
         <Hero
           onExploreDemo={() => scrollToSection('interactive-demo')}
           onSeeHowItWorks={() => scrollToSection('workflow')}
-          onOpenPreTest={() => setIsPreTestOpen(true)}
         />
 
         {/* Section A — Trusted Assessment Experience (Light Blue-Grey Section) */}
@@ -57,10 +56,7 @@ export function App() {
       </main>
 
       {/* Section G — Closing CTA Banner & Corporate Footer */}
-      <Footer
-        onExploreDemo={() => scrollToSection('interactive-demo')}
-        onOpenPreTest={() => setIsPreTestOpen(true)}
-      />
+      <Footer onExploreDemo={() => scrollToSection('interactive-demo')} />
 
       {/* Interactive Diagnostics & Rebuttal Modals */}
       <PreTestModal isOpen={isPreTestOpen} onClose={() => setIsPreTestOpen(false)} />

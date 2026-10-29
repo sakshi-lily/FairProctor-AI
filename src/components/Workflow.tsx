@@ -1,51 +1,77 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { WORKFLOW_STEPS } from '../data/mockData';
 import { Check, ArrowRight, ShieldCheck, Activity, Cpu, Filter, Users, FileCheck2 } from 'lucide-react';
 
 export const Workflow: React.FC = () => {
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
 
-  const activeStep = WORKFLOW_STEPS[activeStepIndex];
+  const steps = [
+    {
+      step: '01',
+      title: 'Collect Assessment Signals',
+      shortDesc: 'Captures window focus, typing cadence, and audio decibel levels with local client memory buffering.',
+      commitment: 'Zero raw video leaves the candidate device unless an escalated flag is confirmed.'
+    },
+    {
+      step: '02',
+      title: 'Separate Environmental Issues',
+      shortDesc: 'Monitors UDP packet loss, network handovers, and Wi-Fi jitter to decouple infrastructure faults.',
+      commitment: 'Poor connectivity is treated as an infrastructure reality, never grounds for disciplinary action.'
+    },
+    {
+      step: '03',
+      title: 'Analyse Behavioural Evidence',
+      shortDesc: 'Correlates typing bursts, clipboard velocity, and window focus into an explainable Bayesian confidence model.',
+      commitment: 'Every risk point is backed by a plain-language explanation and verifiable timestamp.'
+    },
+    {
+      step: '04',
+      title: 'Rank Sessions for Review',
+      shortDesc: 'Auto-clears 85–90% of genuine sessions, prioritizing only meaningful multi-signal anomalies for educators.',
+      commitment: 'The AI never auto-fails candidates. Only certified faculty deliver final verdicts.'
+    },
+    {
+      step: '05',
+      title: 'Enable Human Decisions & Appeals',
+      shortDesc: 'Provides flagged candidates with a 48-hour window to review timestamps and submit explanations or ISP logs.',
+      commitment: 'Restoring student dignity through due process, transparency, and two-way communication.'
+    }
+  ];
 
-  // Custom visual icons for each step
   const stepIcons = [Activity, Filter, Cpu, Users, FileCheck2];
   const ActiveStepIcon = stepIcons[activeStepIndex];
+  const currentStep = steps[activeStepIndex];
 
   return (
     <section
       id="workflow"
       style={{
-        padding: '100px 0',
+        padding: '85px 0',
         backgroundColor: '#061744',
         position: 'relative',
         borderTop: '1px solid rgba(255, 255, 255, 0.08)'
       }}
     >
       <div className="container">
-        {/* Section Header */}
-        <div style={{ textAlign: 'center', maxWidth: '780px', margin: '0 auto 3.5rem auto' }}>
-          <div className="badge badge-green" style={{ marginBottom: '1rem' }}>
-            SECTION C · HOW IT WORKS
-          </div>
+        {/* Header */}
+        <div style={{ textAlign: 'center', maxWidth: '720px', margin: '0 auto 2.75rem auto' }}>
           <h2
             style={{
-              fontSize: 'clamp(2rem, 3.8vw, 3rem)',
-              marginBottom: '1rem',
+              fontSize: 'clamp(1.9rem, 3.2vw, 2.75rem)',
+              marginBottom: '0.65rem',
               letterSpacing: '-0.03em',
               color: '#FFFFFF'
             }}
           >
-            How FairProctor processes an assessment.
+            How it works.
           </h2>
-          <p style={{ fontSize: '1.05rem', color: '#B8C4D9', lineHeight: 1.65 }}>
-            From multimodal client signal ingest to candidate due process, exam integrity is handled as an
-            explainable, transparent chain of custody.
+          <p style={{ fontSize: '1rem', color: '#B8C4D9', lineHeight: 1.55, margin: 0 }}>
+            An explainable five-stage assessment security pipeline from client telemetry ingest to candidate appeal.
           </p>
         </div>
 
-        {/* Desktop Horizontal Workflow Stepper */}
-        <div className="workflow-desktop" style={{ marginBottom: '3rem' }}>
+        {/* Desktop Stepper */}
+        <div className="workflow-desktop" style={{ marginBottom: '2.5rem' }}>
           <div
             style={{
               display: 'grid',
@@ -58,7 +84,7 @@ export const Workflow: React.FC = () => {
             <div
               style={{
                 position: 'absolute',
-                top: '24px',
+                top: '22px',
                 left: '10%',
                 right: '10%',
                 height: '2px',
@@ -78,13 +104,13 @@ export const Workflow: React.FC = () => {
             </div>
 
             {/* Stepper Buttons */}
-            {WORKFLOW_STEPS.map((step, idx) => {
+            {steps.map((item, idx) => {
               const isActive = activeStepIndex === idx;
               const isPast = activeStepIndex > idx;
 
               return (
                 <button
-                  key={step.step}
+                  key={item.step}
                   onClick={() => setActiveStepIndex(idx)}
                   style={{
                     position: 'relative',
@@ -98,11 +124,10 @@ export const Workflow: React.FC = () => {
                     padding: 0
                   }}
                 >
-                  {/* Step Bubble */}
                   <div
                     style={{
-                      width: '48px',
-                      height: '48px',
+                      width: '44px',
+                      height: '44px',
                       borderRadius: '50%',
                       backgroundColor: isActive ? '#18B86A' : isPast ? '#0E2463' : '#03102F',
                       border: `2px solid ${isActive ? '#18B86A' : isPast ? '#18B86A' : 'rgba(255,255,255,0.2)'}`,
@@ -112,28 +137,26 @@ export const Workflow: React.FC = () => {
                       color: isActive ? '#FFFFFF' : '#B8C4D9',
                       fontWeight: 800,
                       fontFamily: 'var(--font-mono)',
-                      fontSize: '0.875rem',
-                      boxShadow: isActive ? '0 0 16px rgba(24, 184, 106, 0.45)' : 'none',
-                      transition: 'all 0.25s ease',
-                      marginBottom: '0.85rem'
+                      fontSize: '0.8125rem',
+                      boxShadow: isActive ? '0 0 14px rgba(24, 184, 106, 0.4)' : 'none',
+                      transition: 'all 0.2s ease',
+                      marginBottom: '0.65rem'
                     }}
                   >
-                    {isPast ? <Check size={18} color="#18B86A" /> : step.step}
+                    {isPast ? <Check size={16} color="#18B86A" /> : item.step}
                   </div>
 
-                  {/* Step Title Label */}
                   <span
                     style={{
-                      fontSize: '0.8125rem',
+                      fontSize: '0.75rem',
                       fontWeight: 700,
                       color: isActive ? '#FFFFFF' : isPast ? '#EAF1F7' : '#B8C4D9',
                       textAlign: 'center',
-                      lineHeight: 1.35,
-                      maxWidth: '160px',
-                      transition: 'color 0.2s ease'
+                      lineHeight: 1.3,
+                      maxWidth: '140px'
                     }}
                   >
-                    {step.title}
+                    {item.title}
                   </span>
                 </button>
               );
@@ -141,134 +164,109 @@ export const Workflow: React.FC = () => {
           </div>
         </div>
 
-        {/* Mobile Vertical Stepper View */}
-        <div className="workflow-mobile" style={{ display: 'none', flexDirection: 'column', gap: '0.75rem', marginBottom: '2rem' }}>
-          {WORKFLOW_STEPS.map((step, idx) => {
+        {/* Mobile View */}
+        <div className="workflow-mobile" style={{ display: 'none', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+          {steps.map((item, idx) => {
             const isActive = activeStepIndex === idx;
             return (
               <div
-                key={step.step}
+                key={item.step}
                 onClick={() => setActiveStepIndex(idx)}
                 style={{
-                  padding: '1rem',
-                  borderRadius: '6px',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '5px',
                   backgroundColor: isActive ? '#0E2463' : 'rgba(3, 16, 47, 0.6)',
                   border: `1px solid ${isActive ? '#18B86A' : 'rgba(255,255,255,0.1)'}`,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '1rem',
+                  gap: '0.75rem',
                   cursor: 'pointer'
                 }}
               >
                 <div
                   style={{
-                    width: '36px',
-                    height: '36px',
+                    width: '30px',
+                    height: '30px',
                     borderRadius: '50%',
                     backgroundColor: isActive ? '#18B86A' : '#03102F',
                     color: '#FFFFFF',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontWeight: 800,
+                    fontWeight: 700,
                     fontFamily: 'var(--font-mono)',
-                    fontSize: '0.8125rem',
+                    fontSize: '0.75rem',
                     flexShrink: 0
                   }}
                 >
-                  {step.step}
+                  {item.step}
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.875rem', color: isActive ? '#18B86A' : '#FFFFFF' }}>
-                    {step.title}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#B8C4D9' }}>{step.subtitle}</div>
+                <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: isActive ? '#18B86A' : '#FFFFFF' }}>
+                  {item.title}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Active Step Deep-Dive Showcase Card */}
+        {/* Active Step Showcase Card */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={activeStep.step}
-            initial={{ opacity: 0, y: 12 }}
+            key={currentStep.step}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.25 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
             className="card-navy"
             style={{
-              padding: 'clamp(1.5rem, 3.5vw, 2.5rem)',
-              border: '1px solid rgba(24, 184, 106, 0.35)',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)'
+              padding: '1.75rem 2rem',
+              border: '1px solid rgba(24, 184, 106, 0.3)'
             }}
           >
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2.5rem', alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', alignItems: 'center' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
-                  <ActiveStepIcon size={18} color="#18B86A" />
-                  <span className="font-mono" style={{ fontSize: '1rem', fontWeight: 800, color: '#18B86A' }}>
-                    PHASE {activeStep.step}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                  <ActiveStepIcon size={16} color="#18B86A" />
+                  <span className="font-mono" style={{ fontSize: '0.875rem', fontWeight: 800, color: '#18B86A' }}>
+                    PHASE {currentStep.step}
                   </span>
-                  <span style={{ fontSize: '0.8125rem', color: '#B8C4D9' }}>— {activeStep.subtitle}</span>
                 </div>
 
-                <h3 style={{ fontSize: 'clamp(1.35rem, 2vw, 1.8rem)', color: '#FFFFFF', marginBottom: '1rem', fontWeight: 700 }}>
-                  {activeStep.title}
+                <h3 style={{ fontSize: '1.35rem', color: '#FFFFFF', marginBottom: '0.65rem', fontWeight: 700 }}>
+                  {currentStep.title}
                 </h3>
 
-                <p style={{ fontSize: '1rem', color: '#B8C4D9', lineHeight: 1.65, marginBottom: '1.5rem' }}>
-                  {activeStep.description}
+                <p style={{ fontSize: '0.9375rem', color: '#B8C4D9', lineHeight: 1.6, margin: 0 }}>
+                  {currentStep.shortDesc}
                 </p>
-
-                {/* Tech Tags */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {activeStep.tags.map((tag, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        backgroundColor: '#03102F',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        padding: '0.35rem 0.75rem',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        color: '#EAF1F7',
-                        fontWeight: 600
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
               </div>
 
-              {/* Step Fairness Highlight Box */}
+              {/* Commitment Callout */}
               <div
                 style={{
                   backgroundColor: '#03102F',
                   border: '1px solid rgba(24, 184, 106, 0.25)',
-                  borderRadius: '8px',
-                  padding: '1.5rem'
+                  borderRadius: '6px',
+                  padding: '1.25rem'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  <ShieldCheck size={18} color="#18B86A" />
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#18B86A', letterSpacing: '0.04em' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                  <ShieldCheck size={16} color="#18B86A" />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#18B86A' }}>
                     FAIRNESS COMMITMENT
                   </span>
                 </div>
-                <p style={{ fontSize: '0.9375rem', color: '#FFFFFF', lineHeight: 1.65, fontStyle: 'italic', margin: 0 }}>
-                  "{activeStep.highlight}"
+                <p style={{ fontSize: '0.875rem', color: '#FFFFFF', lineHeight: 1.55, margin: 0 }}>
+                  "{currentStep.commitment}"
                 </p>
 
-                <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ marginTop: '0.85rem', display: 'flex', justifyContent: 'flex-end' }}>
                   <button
-                    onClick={() => setActiveStepIndex((activeStepIndex + 1) % WORKFLOW_STEPS.length)}
+                    onClick={() => setActiveStepIndex((activeStepIndex + 1) % steps.length)}
                     className="btn btn-outline-white btn-sm"
                   >
                     <span>Next Phase</span>
-                    <ArrowRight size={14} />
+                    <ArrowRight size={13} />
                   </button>
                 </div>
               </div>

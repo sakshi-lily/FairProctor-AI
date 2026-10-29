@@ -174,48 +174,21 @@ export const Hero: React.FC<HeroProps> = ({ onExploreDemo, onSeeHowItWorks }) =>
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
+                  gap: '0.5rem',
                   paddingBottom: '0.75rem',
                   borderBottom: '1px solid #E4E7EC'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Sparkles size={16} color="#16A765" />
-                  <span
-                    style={{
-                      fontSize: '0.9375rem',
-                      fontWeight: 700,
-                      color: '#101828',
-                      letterSpacing: '-0.01em'
-                    }}
-                  >
-                    Fairness Intelligence
-                  </span>
-                </div>
-
+                <Sparkles size={16} color="#16A765" />
                 <span
                   style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    fontSize: '0.6875rem',
+                    fontSize: '0.9375rem',
                     fontWeight: 700,
-                    color: '#16A765',
-                    backgroundColor: '#E8F8EF',
-                    border: '1px solid rgba(22, 167, 101, 0.25)',
-                    padding: '0.15rem 0.5rem',
-                    borderRadius: '9999px'
+                    color: '#101828',
+                    letterSpacing: '-0.01em'
                   }}
                 >
-                  <span
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      backgroundColor: '#16A765'
-                    }}
-                  />
-                  Decoupled Engine
+                  Fairness Intelligence
                 </span>
               </div>
 

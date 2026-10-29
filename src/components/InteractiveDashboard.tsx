@@ -14,7 +14,7 @@ interface InteractiveDashboardProps {
 }
 
 export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOpenAppealModal }) => {
-  const [selectedSessionId, setSelectedSessionId] = useState<string>(MOCK_SESSIONS[0].id);
+  const [selectedSessionId] = useState<string>(MOCK_SESSIONS[0].id);
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
   const [selectedEventId, setSelectedEventId] = useState<string>(MOCK_SESSIONS[0].timeline[1].id);
   const [verdicts, setVerdicts] = useState<Record<string, string>>({
@@ -75,17 +75,14 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
             overflow: 'hidden'
           }}
         >
-          {/* Top Bar: Candidate Header & Queue */}
+          {/* Top Bar: Candidate Header */}
           <div
             style={{
               padding: '1rem 1.5rem',
               borderBottom: '1px solid #E4E7EC',
               backgroundColor: '#F7F9FC',
               display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem'
+              alignItems: 'center'
             }}
           >
             {/* Candidate Identity */}
@@ -130,56 +127,6 @@ export const InteractiveDashboard: React.FC<InteractiveDashboardProps> = ({ onOp
                   {currentSession.examTitle}
                 </div>
               </div>
-            </div>
-
-            {/* Candidate Queue Switcher */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.75rem', color: '#667085', fontWeight: 600, marginRight: '0.25rem' }}>
-                Queue:
-              </span>
-              {MOCK_SESSIONS.map((sess) => {
-                const isSelected = sess.id === currentSession.id;
-                return (
-                  <button
-                    key={sess.id}
-                    onClick={() => {
-                      setSelectedSessionId(sess.id);
-                      setSelectedEventId(sess.timeline[0]?.id || '');
-                    }}
-                    style={{
-                      backgroundColor: isSelected ? '#FFFFFF' : 'transparent',
-                      border: `1px solid ${isSelected ? '#16A765' : '#E4E7EC'}`,
-                      boxShadow: isSelected ? '0 1px 3px rgba(16, 24, 40, 0.06)' : 'none',
-                      color: isSelected ? '#101828' : '#667085',
-                      padding: '0.35rem 0.65rem',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '0.75rem',
-                      fontWeight: isSelected ? 700 : 500,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        backgroundColor:
-                          sess.integrityRiskScore < 25
-                            ? '#16A765'
-                            : sess.integrityRiskScore < 60
-                            ? '#F59E0B'
-                            : '#EF4444'
-                      }}
-                    />
-                    <span>{sess.candidateName.split(' ')[0]}</span>
-                    <span style={{ opacity: 0.75 }}>({sess.integrityRiskScore})</span>
-                  </button>
-                );
-              })}
             </div>
           </div>
 

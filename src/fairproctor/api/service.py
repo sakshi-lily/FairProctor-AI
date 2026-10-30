@@ -13,7 +13,14 @@ class FairProctorService:
     """Service layer coordinating engine lifecycle and scoring requests."""
 
     def __init__(self, engine: Optional[FairProctorEngine] = None):
-        self.engine = engine or FairProctorEngine.load()
+        if engine is not None:
+            self.engine = engine
+        else:
+            try:
+                self.engine = FairProctorEngine.load(allow_legacy_fallback=True)
+            except Exception as e:
+                logger.warning(f"Could not load pre-trained models ({e}); initializing default FairProctorEngine.")
+                self.engine = FairProctorEngine()
 
     def score(self, request: ScoreSessionRequest) -> ScoreSessionResponse:
         """Processes request payload through the FairProctorEngine."""

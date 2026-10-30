@@ -11,11 +11,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir "uvicorn[standard]"
 
-# Copy project files
-COPY . .
+# Copy application source and trained model weights
+COPY src/ /app/src/
+COPY artifacts/models/ /app/artifacts/models/
 
-# Python source path
+# Python source path and project root
 ENV PYTHONPATH=/app/src
+ENV FAIRPROCTOR_ROOT=/app
 
 # API port
 EXPOSE 8000

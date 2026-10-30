@@ -12,7 +12,8 @@ __pycache__
 Dataset-main
 Students*
 frontend
-artifacts
+artifacts/*
+!artifacts/models/
 tests
 *.csv
 *.mp4

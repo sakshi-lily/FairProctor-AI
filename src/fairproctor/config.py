@@ -7,9 +7,13 @@ from typing import Dict, List, Optional
 
 def find_project_root() -> Path:
     """Find the project root directory based on marker directories or files."""
+    import os
+    env_root = os.environ.get("FAIRPROCTOR_ROOT")
+    if env_root and Path(env_root).exists():
+        return Path(env_root)
     current = Path(__file__).resolve().parent
     for parent in [current] + list(current.parents):
-        if (parent / "Dataset-main").exists() or (parent / ".git").exists():
+        if (parent / "artifacts" / "models").exists() or (parent / "Dataset-main").exists() or (parent / ".git").exists():
             return parent
     # Fallback to grandparent of src/fairproctor/
     return Path(__file__).resolve().parents[2]

@@ -90,12 +90,13 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Ensure ECR Repositories Exist
+        continue-on-error: true
         run: |
           aws ecr describe-repositories --repository-names ${{ env.BACKEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} || \
-            aws ecr create-repository --repository-name ${{ env.BACKEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} --image-scanning-configuration scanOnPush=true
+            aws ecr create-repository --repository-name ${{ env.BACKEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} --image-scanning-configuration scanOnPush=true || true
 
           aws ecr describe-repositories --repository-names ${{ env.FRONTEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} || \
-            aws ecr create-repository --repository-name ${{ env.FRONTEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} --image-scanning-configuration scanOnPush=true
+            aws ecr create-repository --repository-name ${{ env.FRONTEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} --image-scanning-configuration scanOnPush=true || true
 
       - name: Build & Push Backend Docker Image
         uses: docker/build-push-action@v5

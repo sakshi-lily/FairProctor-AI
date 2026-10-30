@@ -175,19 +175,46 @@ jobs:
           username: ${{ secrets.EC2_USER || 'ubuntu' }}
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: ECR_REGISTRY,IMAGE_TAG,AWS_REGION
+          command_timeout: 10m
           script: |
             set -e
             echo "🚀 Starting FairProctor-AI Deployment on EC2..."
 
-            # Ensure Docker & Docker Compose are present
+            # Auto-install Docker & Docker Compose if missing
             if ! command -v docker &> /dev/null; then
-              echo "❌ Docker not found! Please run ~/fairproctor/scripts/setup_ec2.sh on your instance."
-              exit 1
+              echo "🐳 Docker not found. Automatically installing Docker on EC2..."
+              sudo apt-get update -y
+              sudo apt-get install -y ca-certificates curl gnupg
+              sudo install -m 0755 -d /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
+              sudo chmod a+r /etc/apt/keyrings/docker.gpg
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+              sudo apt-get update -y
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+              sudo systemctl enable docker
+              sudo systemctl start docker
+              sudo usermod -aG docker "$USER" || true
+            fi
+
+            # Auto-install AWS CLI v2 if missing
+            if ! command -v aws &> /dev/null; then
+              echo "☁️ AWS CLI not found. Automatically installing AWS CLI v2..."
+              sudo apt-get install -y unzip curl
+              curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip -q -o awscliv2.zip
+              sudo ./aws/install || sudo ./aws/install --update
+              rm -rf awscliv2.zip ./aws
+            fi
+
+            # Determine docker execution mode (fallback to sudo if session group not yet active)
+            DOCKER_CMD="docker"
+            if ! docker info &> /dev/null; then
+              DOCKER_CMD="sudo -E docker"
             fi
 
             # Authenticate EC2 Docker with Amazon ECR
             echo "🔑 Authenticating Docker with Amazon ECR..."
-            aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+            aws ecr get-login-password --region "${AWS_REGION}" | $DOCKER_CMD login --username AWS --password-stdin "${ECR_REGISTRY}"
 
             cd ~/fairproctor
 
@@ -196,16 +223,16 @@ jobs:
             export IMAGE_TAG="${IMAGE_TAG}"
 
             echo "📦 Pulling latest production container images..."
-            docker compose -f docker-compose.prod.yml pull
+            $DOCKER_CMD compose -f docker-compose.prod.yml pull
 
             echo "🔄 Launching updated services..."
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            $DOCKER_CMD compose -f docker-compose.prod.yml up -d --remove-orphans
 
             echo "🧹 Pruning old unused Docker layers..."
-            docker image prune -f
+            $DOCKER_CMD image prune -f
 
             echo "🔍 Verifying container health..."
             sleep 6
-            docker compose -f docker-compose.prod.yml ps
+            $DOCKER_CMD compose -f docker-compose.prod.yml ps
 
             echo "✅ FairProctor-AI successfully deployed to EC2!"

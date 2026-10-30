@@ -7,6 +7,45 @@ import { config } from '../config/env.js';
 import { generateAccessToken, generateRefreshToken } from '../middleware/auth.js';
 import { sendPasswordResetEmail } from '../services/emailService.js';
 
+const defaultAccounts = [
+  {
+    name: 'System Administrator',
+    email: 'admin@fairproctor.ai',
+    password: 'Admin@FairProctor2026!',
+    role: 'admin' as const,
+  },
+  {
+    name: 'Chief Reviewer (Proctor)',
+    email: 'reviewer@fairproctor.ai',
+    password: 'Reviewer@FairProctor2026!',
+    role: 'reviewer' as const,
+  },
+  {
+    name: 'Elena Rostova (Candidate)',
+    email: 'candidate@fairproctor.ai',
+    password: 'Candidate@FairProctor2026!',
+    role: 'candidate' as const,
+  },
+];
+
+async function ensureDefaultAccountsForAuthTests() {
+  for (const account of defaultAccounts) {
+    const existing = await db.findUserByEmail(account.email);
+    if (existing) continue;
+
+    const salt = await bcrypt.genSalt(12);
+    const passwordHash = await bcrypt.hash(account.password, salt);
+    await db.createUser({
+      name: account.name,
+      email: account.email,
+      passwordHash,
+      role: account.role,
+      status: 'active',
+      rememberMe: false,
+    });
+  }
+}
+
 async function runTestSuite() {
   console.log('\n=============================================================');
   console.log('🧪 Starting FairProctor AI Authentication & RBAC Test Suite');
@@ -203,6 +242,7 @@ async function runTestSuite() {
 // Connect to DB and run tests
 import('../db/connection.js').then(async ({ initDatabase }) => {
   await initDatabase();
+  await ensureDefaultAccountsForAuthTests();
   await runTestSuite();
   process.exit(0);
 });

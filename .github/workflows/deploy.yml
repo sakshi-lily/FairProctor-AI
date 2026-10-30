@@ -115,20 +115,31 @@ jobs:
             sudo ufw disable || true
 
             cd ~/fairproctor
+
+            # Persist environment variables to .env so docker compose always has them
+            cat <<EOF > ~/fairproctor/.env
+ECR_REGISTRY=${ECR_REGISTRY}
+IMAGE_TAG=${IMAGE_TAG}
+EOF
+
             export ECR_REGISTRY="${ECR_REGISTRY}"
             export IMAGE_TAG="${IMAGE_TAG}"
+
+            echo "🛑 Force removing any stuck or restarting containers..."
+            $DOCKER_CMD rm -f fairproctor-backend fairproctor-frontend 2>/dev/null || true
+            $DOCKER_CMD compose -f docker-compose.prod.yml down --remove-orphans || true
 
             echo "📦 Pulling latest production container images..."
             $DOCKER_CMD compose -f docker-compose.prod.yml pull
 
             echo "🔄 Launching updated services..."
-            $DOCKER_CMD compose -f docker-compose.prod.yml up -d --remove-orphans
+            $DOCKER_CMD compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
 
             echo "🧹 Cleaning up old Docker layers..."
             $DOCKER_CMD image prune -f
 
             echo "🔍 Verifying container health..."
-            sleep 5
+            sleep 6
             $DOCKER_CMD compose -f docker-compose.prod.yml ps
 
             echo "🌐 Inspecting Listening Ports on Server:"
@@ -138,3 +149,4 @@ jobs:
             curl -I http://127.0.0.1:80 || true
 
             echo "✅ FairProctor-AI is live and running on EC2!"
+

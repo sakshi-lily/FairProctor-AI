@@ -65,14 +65,11 @@ jobs:
           echo "::add-mask::$PASSWORD"
           echo "password=$PASSWORD" >> $GITHUB_OUTPUT
 
-      - name: Copy Production Compose File to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER || 'ubuntu' }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: 'docker-compose.prod.yml'
-          target: '~/fairproctor/'
+      - name: Encode Compose File
+        id: compose-encoded
+        run: |
+          B64=$(base64 -w 0 docker-compose.prod.yml 2>/dev/null || base64 docker-compose.prod.yml | tr -d '\r\n')
+          echo "b64=$B64" >> $GITHUB_OUTPUT
 
       - name: Deploy Containers on EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -80,15 +77,20 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
           ECR_PASSWORD: ${{ steps.ecr-auth.outputs.password }}
+          COMPOSE_B64: ${{ steps.compose-encoded.outputs.b64 }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER || 'ubuntu' }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: ECR_REGISTRY,IMAGE_TAG,ECR_PASSWORD
+          envs: ECR_REGISTRY,IMAGE_TAG,ECR_PASSWORD,COMPOSE_B64
           command_timeout: 5m
           script: |
             set -e
             echo "🚀 Launching FairProctor-AI Containers on EC2..."
+
+            mkdir -p ~/fairproctor
+            echo "${COMPOSE_B64}" | base64 -d > ~/fairproctor/docker-compose.prod.yml
+
 
             sudo systemctl start docker || true
 

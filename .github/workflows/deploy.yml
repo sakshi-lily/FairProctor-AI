@@ -114,6 +114,7 @@ jobs:
             sudo chown -R $USER:$USER ~/fairproctor || true
             sudo chmod -R u+rw ~/fairproctor || true
             sudo ufw allow 80/tcp || true
+            sudo ufw allow 443/tcp || true
             sudo ufw allow 8000/tcp || true
             sudo ufw --force disable || true
 
@@ -151,11 +152,12 @@ jobs:
             $DOCKER_CMD compose -f docker-compose.prod.yml ps
 
             echo "🌐 Inspecting Listening Ports on Server:"
-            sudo ss -tulpn | grep -E ':(80|8000)'
+            sudo ss -tulpn | grep -E ':(80|443|8000)'
 
             echo "🌐 Testing Local HTTP Response on Server:"
             curl -I http://127.0.0.1:80
+            curl -k -I https://127.0.0.1:443
 
-            echo "✅ FairProctor-AI is live and running on EC2!"
+            echo "✅ FairProctor-AI is live and running on EC2 with HTTPS!"
 
 

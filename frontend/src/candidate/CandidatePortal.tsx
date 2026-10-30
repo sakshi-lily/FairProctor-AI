@@ -3394,6 +3394,15 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                   <p className="text-[11px] text-slate-500 leading-normal">
                     {cameraErrorInfo ? cameraErrorInfo.guidance : 'Camera access is required. Click "Allow Camera" or "Enable Both Devices" below.'}
                   </p>
+                  {window.location.protocol === 'http:' && (
+                    <a
+                      href={`https://${window.location.hostname}${window.location.pathname}${window.location.search}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs shadow-sm transition-colors mt-2"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Switch to Secure HTTPS</span>
+                    </a>
+                  )}
                 </div>
               )}
 

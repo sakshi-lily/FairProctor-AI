@@ -180,36 +180,34 @@ jobs:
             set -e
             echo "🚀 Starting FairProctor-AI Deployment on EC2..."
 
-            # Auto-install Docker & Docker Compose if missing
-            if ! command -v docker &> /dev/null; then
-              echo "🐳 Docker not found. Automatically installing Docker on EC2..."
-              sudo apt-get update -y
-              sudo apt-get install -y ca-certificates curl gnupg
-              sudo install -m 0755 -d /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
-              sudo chmod a+r /etc/apt/keyrings/docker.gpg
-              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-              sudo apt-get update -y
-              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-              sudo systemctl enable docker
-              sudo systemctl start docker
-              sudo usermod -aG docker "$USER" || true
-            fi
+            # Clean up any conflicting duplicate docker apt repository list
+            sudo rm -f /etc/apt/sources.list.d/docker.list || true
 
-            # Auto-install AWS CLI v2 if missing
+            # Auto-install AWS CLI v2 if missing (uses python3 to unzip, avoiding apt conflicts)
             if ! command -v aws &> /dev/null; then
               echo "☁️ AWS CLI not found. Automatically installing AWS CLI v2..."
-              sudo apt-get install -y unzip curl
               curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              unzip -q -o awscliv2.zip
+              python3 -c "import zipfile; zipfile.ZipFile('awscliv2.zip').extractall('.')"
               sudo ./aws/install || sudo ./aws/install --update
               rm -rf awscliv2.zip ./aws
             fi
+
+            # Ensure Docker service is started
+            sudo systemctl start docker || true
 
             # Determine docker execution mode (fallback to sudo if session group not yet active)
             DOCKER_CMD="docker"
             if ! docker info &> /dev/null; then
               DOCKER_CMD="sudo -E docker"
+            fi
+
+            # Ensure Docker Compose plugin or binary is available
+            if ! $DOCKER_CMD compose version &> /dev/null; then
+              echo "📦 Installing Docker Compose standalone binary..."
+              sudo curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+              sudo mkdir -p /usr/local/lib/docker/cli-plugins
+              sudo ln -sf /usr/local/bin/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
             fi
 
             # Authenticate EC2 Docker with Amazon ECR

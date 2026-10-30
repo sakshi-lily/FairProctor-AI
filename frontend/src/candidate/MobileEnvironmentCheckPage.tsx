@@ -328,6 +328,10 @@ export const MobileEnvironmentCheckPage: React.FC<Props> = ({ initialToken, onDo
 
     try {
       const video = videoRef.current;
+      if (!video) {
+        handleSimulateSideCapture();
+        return;
+      }
       const canvas = document.createElement('canvas');
 
       // Scale down image to optimal dimensions for fast, reliable mobile network transmission

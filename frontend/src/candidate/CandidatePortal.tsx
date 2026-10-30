@@ -2549,7 +2549,7 @@ export const CandidatePortal: React.FC<Props> = ({
                   { key: 'room_right', label: '3. Right Side' },
                   { key: 'room_back', label: '4. Rear Room' },
                 ].map((side) => {
-                  const photoUrl = (pairingStatus.environment_check?.captured_sides as any)?.[side.key];
+                  const photoUrl = (pairingStatus?.environment_check?.captured_sides as any)?.[side.key];
                   return (
                     <div key={side.key} className="space-y-1">
                       <div className="aspect-video rounded-xl overflow-hidden border border-emerald-200 bg-slate-900 shadow-xs relative">
@@ -2575,7 +2575,7 @@ export const CandidatePortal: React.FC<Props> = ({
 
               <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-200 text-xs">
                 <span className="text-[11px] text-emerald-800 font-medium">
-                  Lighting: <strong className="capitalize">{pairingStatus.environment_check?.lighting_status || 'Adequate'}</strong> &bull; Desk: <strong>Cleared & Verified</strong>
+                  Lighting: <strong className="capitalize">{pairingStatus?.environment_check?.lighting_status || 'Adequate'}</strong> &bull; Desk: <strong>Cleared & Verified</strong>
                 </span>
                 <button
                   onClick={() => setCurrentScreen('desktop_permissions')}

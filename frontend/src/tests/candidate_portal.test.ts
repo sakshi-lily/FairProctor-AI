@@ -5,7 +5,7 @@ import {
   EventSource,
   CandidateEventRecord,
 } from '../types/proctoring';
-import { LiveDetectionResult } from '../candidate/CandidatePortal';
+import { LiveDetectionResult, evaluateExamKeyLockdown } from '../candidate/CandidatePortal';
 
 describe('FairProctor-AI Candidate Portal Tests', () => {
 
@@ -796,6 +796,194 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       expect(payload.frame_observation.head_pose).toBe('forward');
       expect(payload.frame_observation.phone_present).toBe(0);
       expect(payload.policy_im102_applied).toBe(true);
+    });
+  });
+
+  describe('12. Examination Fullscreen Keyboard Lockdown & Interception Guardrails', () => {
+    it('locks Escape key during fullscreen examination with non-penalizing guidance', () => {
+      const decision = evaluateExamKeyLockdown({ key: 'Escape', code: 'Escape' });
+      expect(decision.isLocked).toBe(true);
+      expect(decision.category).toBe('escape');
+      expect(decision.message).toContain('Escape key is locked during fullscreen exam');
+      expect(decision.eventMetadata?.interception).toBe('Escape');
+    });
+
+    it('locks page reload shortcuts (F5, Ctrl+R, Cmd+R, Ctrl+Shift+R) to preserve session state', () => {
+      const f5 = evaluateExamKeyLockdown({ key: 'F5', code: 'F5' });
+      expect(f5.isLocked).toBe(true);
+      expect(f5.category).toBe('reload');
+      expect(f5.message).toContain('Page reload');
+
+      const ctrlR = evaluateExamKeyLockdown({ key: 'r', ctrlKey: true, code: 'KeyR' });
+      expect(ctrlR.isLocked).toBe(true);
+      expect(ctrlR.category).toBe('reload');
+
+      const cmdR = evaluateExamKeyLockdown({ key: 'r', metaKey: true, code: 'KeyR' });
+      expect(cmdR.isLocked).toBe(true);
+      expect(cmdR.category).toBe('reload');
+
+      const ctrlShiftR = evaluateExamKeyLockdown({ key: 'R', ctrlKey: true, shiftKey: true, code: 'KeyR' });
+      expect(ctrlShiftR.isLocked).toBe(true);
+      expect(ctrlShiftR.category).toBe('reload');
+    });
+
+    it('locks tab switching and window management shortcuts (Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1-9, Ctrl+PageUp/Down, Ctrl+W, Ctrl+T, Ctrl+N)', () => {
+      // Direct tab index jumps (Ctrl+1 to Ctrl+9)
+      for (let i = 1; i <= 9; i++) {
+        const tabJump = evaluateExamKeyLockdown({ key: String(i), ctrlKey: true, code: `Digit${i}` });
+        expect(tabJump.isLocked).toBe(true);
+        expect(tabJump.category).toBe('tab_window');
+        expect(tabJump.message).toContain('Tab switching');
+      }
+
+      // Mac direct tab jumps (Cmd+1 to Cmd+9)
+      const cmdTab1 = evaluateExamKeyLockdown({ key: '1', metaKey: true, code: 'Digit1' });
+      expect(cmdTab1.isLocked).toBe(true);
+      expect(cmdTab1.category).toBe('tab_window');
+
+      // Tab cycling shortcuts
+      const ctrlTab = evaluateExamKeyLockdown({ key: 'Tab', ctrlKey: true, code: 'Tab' });
+      expect(ctrlTab.isLocked).toBe(true);
+      expect(ctrlTab.category).toBe('tab_window');
+
+      const ctrlShiftTab = evaluateExamKeyLockdown({ key: 'Tab', ctrlKey: true, shiftKey: true, code: 'Tab' });
+      expect(ctrlShiftTab.isLocked).toBe(true);
+      expect(ctrlShiftTab.category).toBe('tab_window');
+
+      const ctrlPageDown = evaluateExamKeyLockdown({ key: 'PageDown', ctrlKey: true, code: 'PageDown' });
+      expect(ctrlPageDown.isLocked).toBe(true);
+      expect(ctrlPageDown.category).toBe('tab_window');
+
+      const ctrlPageUp = evaluateExamKeyLockdown({ key: 'PageUp', ctrlKey: true, code: 'PageUp' });
+      expect(ctrlPageUp.isLocked).toBe(true);
+      expect(ctrlPageUp.category).toBe('tab_window');
+
+      // Tab and window creation/close
+      const ctrlW = evaluateExamKeyLockdown({ key: 'w', ctrlKey: true, code: 'KeyW' });
+      expect(ctrlW.isLocked).toBe(true);
+      expect(ctrlW.category).toBe('tab_window');
+
+      const ctrlT = evaluateExamKeyLockdown({ key: 't', ctrlKey: true, code: 'KeyT' });
+      expect(ctrlT.isLocked).toBe(true);
+      expect(ctrlT.category).toBe('tab_window');
+
+      const ctrlN = evaluateExamKeyLockdown({ key: 'n', ctrlKey: true, code: 'KeyN' });
+      expect(ctrlN.isLocked).toBe(true);
+      expect(ctrlN.category).toBe('tab_window');
+
+      const cmdShiftN = evaluateExamKeyLockdown({ key: 'N', metaKey: true, shiftKey: true, code: 'KeyN' });
+      expect(cmdShiftN.isLocked).toBe(true);
+      expect(cmdShiftN.category).toBe('tab_window');
+    });
+
+    it('locks system navigation (Alt+Tab, Alt+F4, Alt+ArrowLeft, Backspace outside input)', () => {
+      const altTab = evaluateExamKeyLockdown({ key: 'Tab', altKey: true, code: 'Tab' });
+      expect(altTab.isLocked).toBe(true);
+      expect(altTab.category).toBe('navigation');
+
+      const altF4 = evaluateExamKeyLockdown({ key: 'F4', altKey: true, code: 'F4' });
+      expect(altF4.isLocked).toBe(true);
+      expect(altF4.category).toBe('navigation');
+
+      const altLeft = evaluateExamKeyLockdown({ key: 'ArrowLeft', altKey: true });
+      expect(altLeft.isLocked).toBe(true);
+      expect(altLeft.category).toBe('navigation');
+
+      const backspaceOutside = evaluateExamKeyLockdown({ key: 'Backspace', isInput: false });
+      expect(backspaceOutside.isLocked).toBe(true);
+      expect(backspaceOutside.category).toBe('navigation');
+    });
+
+    it('locks F11 browser fullscreen toggle to maintain controlled proctoring container', () => {
+      const f11 = evaluateExamKeyLockdown({ key: 'F11', code: 'F11' });
+      expect(f11.isLocked).toBe(true);
+      expect(f11.category).toBe('fullscreen');
+      expect(f11.message).toContain('F11 fullscreen toggle is locked');
+    });
+
+    it('locks browser search and utility shortcuts (Ctrl+F, Ctrl+H, Ctrl+J, F3)', () => {
+      const ctrlF = evaluateExamKeyLockdown({ key: 'f', ctrlKey: true });
+      expect(ctrlF.isLocked).toBe(true);
+      expect(ctrlF.category).toBe('browser_tool');
+
+      const ctrlH = evaluateExamKeyLockdown({ key: 'h', ctrlKey: true });
+      expect(ctrlH.isLocked).toBe(true);
+      expect(ctrlH.category).toBe('browser_tool');
+
+      const ctrlJ = evaluateExamKeyLockdown({ key: 'j', ctrlKey: true });
+      expect(ctrlJ.isLocked).toBe(true);
+      expect(ctrlJ.category).toBe('browser_tool');
+
+      const f3 = evaluateExamKeyLockdown({ key: 'F3', code: 'F3' });
+      expect(f3.isLocked).toBe(true);
+      expect(f3.category).toBe('browser_tool');
+    });
+
+    it('protects question content against copy, cut, and select-all outside input elements', () => {
+      const ctrlC = evaluateExamKeyLockdown({ key: 'c', ctrlKey: true, isInput: false });
+      expect(ctrlC.isLocked).toBe(true);
+      expect(ctrlC.category).toBe('content_protection');
+      expect(ctrlC.message).toContain('Copying, cutting, and text extraction');
+
+      const ctrlX = evaluateExamKeyLockdown({ key: 'x', ctrlKey: true, isInput: false });
+      expect(ctrlX.isLocked).toBe(true);
+      expect(ctrlX.category).toBe('content_protection');
+
+      const ctrlA = evaluateExamKeyLockdown({ key: 'a', ctrlKey: true, isInput: false });
+      expect(ctrlA.isLocked).toBe(true);
+      expect(ctrlA.category).toBe('content_protection');
+    });
+
+    it('preserves candidate typing and full scratchpad accessibility inside editable areas', () => {
+      // Normal typing in scratchpad
+      const backspaceInInput = evaluateExamKeyLockdown({ key: 'Backspace', isInput: true });
+      expect(backspaceInInput.isLocked).toBe(false);
+
+      const letterTyping = evaluateExamKeyLockdown({ key: 'e', isInput: true });
+      expect(letterTyping.isLocked).toBe(false);
+
+      // Copy / Paste / Select All inside rough notes scratchpad is permitted
+      const copyInNotes = evaluateExamKeyLockdown({ key: 'c', ctrlKey: true, isInput: true });
+      expect(copyInNotes.isLocked).toBe(false);
+
+      const pasteInNotes = evaluateExamKeyLockdown({ key: 'v', ctrlKey: true, isInput: true });
+      expect(pasteInNotes.isLocked).toBe(false);
+
+      const selectAllInNotes = evaluateExamKeyLockdown({ key: 'a', ctrlKey: true, isInput: true });
+      expect(selectAllInNotes.isLocked).toBe(false);
+    });
+
+    it('locks developer tools, view source, screen capture, and page export', () => {
+      const f12 = evaluateExamKeyLockdown({ key: 'F12', code: 'F12' });
+      expect(f12.isLocked).toBe(true);
+      expect(f12.category).toBe('devtools');
+
+      const ctrlShiftI = evaluateExamKeyLockdown({ key: 'I', ctrlKey: true, shiftKey: true });
+      expect(ctrlShiftI.isLocked).toBe(true);
+      expect(ctrlShiftI.category).toBe('devtools');
+
+      const ctrlU = evaluateExamKeyLockdown({ key: 'u', ctrlKey: true });
+      expect(ctrlU.isLocked).toBe(true);
+      expect(ctrlU.category).toBe('devtools');
+
+      const printScreen = evaluateExamKeyLockdown({ key: 'PrintScreen', code: 'PrintScreen' });
+      expect(printScreen.isLocked).toBe(true);
+      expect(printScreen.category).toBe('print_export');
+
+      const ctrlP = evaluateExamKeyLockdown({ key: 'p', ctrlKey: true });
+      expect(ctrlP.isLocked).toBe(true);
+      expect(ctrlP.category).toBe('print_export');
+
+      const ctrlS = evaluateExamKeyLockdown({ key: 's', ctrlKey: true });
+      expect(ctrlS.isLocked).toBe(true);
+      expect(ctrlS.category).toBe('print_export');
+    });
+
+    it('ignores solitary modifier keys (Shift, Ctrl, Alt, Meta)', () => {
+      expect(evaluateExamKeyLockdown({ key: 'Shift' }).isLocked).toBe(false);
+      expect(evaluateExamKeyLockdown({ key: 'Control' }).isLocked).toBe(false);
+      expect(evaluateExamKeyLockdown({ key: 'Alt' }).isLocked).toBe(false);
+      expect(evaluateExamKeyLockdown({ key: 'Meta' }).isLocked).toBe(false);
     });
   });
 

@@ -73,6 +73,183 @@ export interface CameraErrorInfo {
   guidance: string;
 }
 
+export interface KeyLockdownDecision {
+  isLocked: boolean;
+  message?: string;
+  category?: 'escape' | 'reload' | 'tab_window' | 'navigation' | 'fullscreen' | 'browser_tool' | 'content_protection' | 'devtools' | 'print_export';
+  eventMetadata?: Record<string, any>;
+}
+
+export function evaluateExamKeyLockdown(event: {
+  key: string;
+  code?: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+  isInput?: boolean;
+}): KeyLockdownDecision {
+  const { key, code = '', ctrlKey = false, metaKey = false, altKey = false, shiftKey = false, isInput = false } = event;
+  const isCtrlOrMeta = ctrlKey || metaKey;
+  const lowerKey = key ? key.toLowerCase() : '';
+
+  // 1. Modifier keys alone are never locked
+  if (['Shift', 'Control', 'Alt', 'Meta'].includes(key)) {
+    return { isLocked: false };
+  }
+
+  // 2. Escape (Fullscreen exit lock)
+  if (key === 'Escape' || code === 'Escape') {
+    return {
+      isLocked: true,
+      category: 'escape',
+      message: 'Escape key is locked during fullscreen exam. Please use on-screen controls or "Submit Exam" to end your session.',
+      eventMetadata: { interception: 'Escape', key: 'Escape' },
+    };
+  }
+
+  // 3. Page Reload / Refresh (F5, Ctrl+R, Cmd+R, Ctrl+Shift+R, Ctrl+F5)
+  if (key === 'F5' || code === 'F5' || (isCtrlOrMeta && (lowerKey === 'r' || code === 'KeyR'))) {
+    return {
+      isLocked: true,
+      category: 'reload',
+      message: 'Page reload (F5 / Ctrl+R) is locked during the active examination to preserve session state.',
+      eventMetadata: { interception: 'PageReload', key },
+    };
+  }
+
+  // 4. Tab & Window Operations (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1-9, PageUp/PageDown tab cycling)
+  const isDirectTabJump = isCtrlOrMeta && ['1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(key);
+  const isTabCycling =
+    isCtrlOrMeta &&
+    (key === 'Tab' ||
+      code === 'Tab' ||
+      key === 'PageUp' ||
+      key === 'PageDown' ||
+      code === 'PageUp' ||
+      code === 'PageDown' ||
+      (shiftKey && (key === '[' || key === ']' || lowerKey === 'tab')));
+
+  if (
+    isDirectTabJump ||
+    isTabCycling ||
+    (isCtrlOrMeta &&
+      (['w', 't', 'n'].includes(lowerKey) ||
+        ['KeyW', 'KeyT', 'KeyN'].includes(code) ||
+        (shiftKey && ['n', 'p'].includes(lowerKey))))
+  ) {
+    return {
+      isLocked: true,
+      category: 'tab_window',
+      message: 'Tab switching and window shortcuts (Ctrl+Tab, Ctrl+1-9, Ctrl+T, Ctrl+W) are locked during full tab exam mode.',
+      eventMetadata: { interception: 'TabSwitchControl', key, code },
+    };
+  }
+
+  // 5. System Navigation & Window Control (Alt+Tab, Alt+F4, Alt+ArrowLeft/Right, Backspace outside input)
+  if (
+    (altKey && (['Tab', 'F4', 'ArrowLeft', 'ArrowRight'].includes(key) || ['Tab', 'F4', 'ArrowLeft', 'ArrowRight'].includes(code))) ||
+    (!isInput && (key === 'Backspace' || code === 'Backspace'))
+  ) {
+    return {
+      isLocked: true,
+      category: 'navigation',
+      message: 'Navigation and window switching shortcuts (Alt+Tab, Alt+F4, Backspace) are locked during the examination.',
+      eventMetadata: { interception: 'NavigationControl', key, code },
+    };
+  }
+
+  // 6. Fullscreen Desynchronization (F11)
+  if (key === 'F11' || code === 'F11') {
+    return {
+      isLocked: true,
+      category: 'fullscreen',
+      message: 'F11 fullscreen toggle is locked. The examination maintains controlled fullscreen mode.',
+      eventMetadata: { interception: 'F11Toggle', key },
+    };
+  }
+
+  // 7. Browser Utilities & In-Page Search (Ctrl+H, Ctrl+J, Ctrl+O, Ctrl+F, Ctrl+G, Ctrl+D, Ctrl+K, Ctrl+E, F3)
+  if (
+    (isCtrlOrMeta && ['h', 'j', 'o', 'f', 'g', 'd', 'k', 'e'].includes(lowerKey)) ||
+    key === 'F3' ||
+    code === 'F3'
+  ) {
+    return {
+      isLocked: true,
+      category: 'browser_tool',
+      message: 'Browser utility and search shortcuts (Ctrl+F, Ctrl+H, Ctrl+J) are locked during the examination.',
+      eventMetadata: { interception: 'BrowserTool', key },
+    };
+  }
+
+  // 8. Content Protection outside input elements (Ctrl+C, Ctrl+X, Ctrl+A, Ctrl+V)
+  if (!isInput && isCtrlOrMeta && ['c', 'x', 'a', 'v'].includes(lowerKey)) {
+    return {
+      isLocked: true,
+      category: 'content_protection',
+      message: 'Copying, cutting, and text extraction from exam questions are locked.',
+      eventMetadata: { interception: 'ClipboardOperation', key },
+    };
+  }
+
+  // 9. Screen Capture (PrintScreen)
+  if (key === 'PrintScreen' || code === 'PrintScreen') {
+    return {
+      isLocked: true,
+      category: 'print_export',
+      message: 'Screenshot shortcut (PrintScreen) intercepted. Screen capture is restricted during proctored exams under Policy IM-102.',
+      eventMetadata: { interception: 'PrintScreen', key: 'PrintScreen' },
+    };
+  }
+
+  // 10. Print & Page Save (Ctrl+P, Ctrl+S)
+  if (isCtrlOrMeta && lowerKey === 'p') {
+    return {
+      isLocked: true,
+      category: 'print_export',
+      message: 'Printing and page export shortcuts (Ctrl+P / Cmd+P) are locked during the examination.',
+      eventMetadata: { interception: 'PrintExport', key },
+    };
+  }
+  if (isCtrlOrMeta && lowerKey === 's') {
+    return {
+      isLocked: true,
+      category: 'print_export',
+      message: 'Page saving shortcuts (Ctrl+S / Cmd+S) are locked during the examination.',
+      eventMetadata: { interception: 'PageSave', key },
+    };
+  }
+
+  // 11. Developer Tools (F12, Ctrl+Shift+I/J/C, Cmd+Option+I/J/C, Ctrl+U)
+  if (
+    key === 'F12' ||
+    code === 'F12' ||
+    (isCtrlOrMeta && shiftKey && ['i', 'j', 'c'].includes(lowerKey)) ||
+    (metaKey && altKey && ['i', 'j', 'c'].includes(lowerKey))
+  ) {
+    return {
+      isLocked: true,
+      category: 'devtools',
+      message: 'Developer tools shortcuts (F12, Inspect) are locked during the examination.',
+      eventMetadata: { interception: 'DevTools', key },
+    };
+  }
+  if (
+    (isCtrlOrMeta && lowerKey === 'u') ||
+    (metaKey && altKey && lowerKey === 'u')
+  ) {
+    return {
+      isLocked: true,
+      category: 'devtools',
+      message: 'View Source shortcut (Ctrl+U) is locked during the examination.',
+      eventMetadata: { interception: 'ViewSource', key },
+    };
+  }
+
+  return { isLocked: false };
+}
+
 type WizardScreen =
   | 'welcome'
   | 'readiness'
@@ -841,6 +1018,11 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         desktopMediaStreamRef.current.getTracks().forEach((track) => track.stop());
         desktopMediaStreamRef.current = null;
       }
+      if ('keyboard' in navigator && (navigator as any).keyboard?.unlock) {
+        try {
+          (navigator as any).keyboard.unlock();
+        } catch {}
+      }
     };
   }, []);
 
@@ -1371,6 +1553,24 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       console.warn('Browser fullscreen entry prevented or unsupported.');
     }
 
+    // Modern Keyboard Lock API: lock all supported keys including Escape and Tab in fullscreen
+    if ('keyboard' in navigator && (navigator as any).keyboard?.lock) {
+      try {
+        await (navigator as any).keyboard.lock();
+        console.info('Full Keyboard Lock API active: tab switching and navigation locked.');
+      } catch (err) {
+        try {
+          await (navigator as any).keyboard.lock(['Escape', 'Tab']);
+        } catch (fallbackErr) {
+          console.warn('Keyboard Lock API request rejected or unsupported:', fallbackErr);
+        }
+      }
+    }
+
+    try {
+      document.title = 'FairProctor-AI | Live Examination (Full Tab Locked)';
+    } catch {}
+
     setCurrentScreen('active_exam');
     setIsExamRunning(true);
     setSecondsRemaining(300);
@@ -1397,11 +1597,24 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
   const handleAcknowledgeWarning = async () => {
     setWarningModalOpen(false);
     try {
+      document.title = 'FairProctor-AI | Live Examination (Full Tab Locked)';
+    } catch {}
+    try {
       if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
         await document.documentElement.requestFullscreen();
         setIsFullscreen(true);
       }
     } catch {}
+
+    if ('keyboard' in navigator && (navigator as any).keyboard?.lock) {
+      try {
+        await (navigator as any).keyboard.lock();
+      } catch {
+        try {
+          await (navigator as any).keyboard.lock(['Escape', 'Tab']);
+        } catch {}
+      }
+    }
 
     if (activeSession) {
       await recordCandidateEvent(activeSession.session_id, {
@@ -1449,20 +1662,28 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable);
 
-      // 2. Allow modifier keys themselves
-      const isModifierOnly = ['Shift', 'Control', 'Alt', 'Meta'].includes(e.key);
-      if (isModifierOnly) return;
+      const decision = evaluateExamKeyLockdown({
+        key: e.key,
+        code: e.code,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+        isInput: Boolean(isInput),
+      });
 
-      // 3. Intercept PrintScreen (Screen Capture shortcut)
-      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
+      if (decision.isLocked) {
         e.preventDefault();
-        setShortcutNotice('Screenshot shortcut (PrintScreen) intercepted. Screen capture is restricted during proctored exams under Policy IM-102.');
-        if (activeSession) {
+        e.stopPropagation();
+        if (decision.message) {
+          setShortcutNotice(decision.message);
+        }
+        if (activeSession && decision.eventMetadata) {
           recordCandidateEvent(activeSession.session_id, {
             event_type: 'EXAM_WARNING_ACKNOWLEDGED',
             source: 'browser',
             metadata: {
-              interception: 'PrintScreen',
+              ...decision.eventMetadata,
               client_timestamp: new Date().toISOString(),
               policy_note: 'IM-102 non-penalizing audit record',
             },
@@ -1472,42 +1693,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         return;
       }
 
-      // 4. Intercept Page Print (Ctrl+P / Cmd+P)
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
-        e.preventDefault();
-        setShortcutNotice('Printing and page export shortcuts (Ctrl+P / Cmd+P) are disabled during the examination.');
-        return;
-      }
-
-      // 5. Intercept Save Page (Ctrl+S / Cmd+S)
-      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
-        e.preventDefault();
-        setShortcutNotice('Page saving shortcuts (Ctrl+S / Cmd+S) are disabled during the examination.');
-        return;
-      }
-
-      // 6. Intercept Developer Tools (F12, Ctrl+Shift+I, Cmd+Option+I, Ctrl+Shift+J, Ctrl+Shift+C)
-      if (
-        e.key === 'F12' ||
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(e.key)) ||
-        (e.metaKey && e.altKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(e.key))
-      ) {
-        e.preventDefault();
-        setShortcutNotice('Developer tools shortcuts are disabled during the examination.');
-        return;
-      }
-
-      // 7. Intercept View Source (Ctrl+U / Cmd+Option+U)
-      if (
-        ((e.ctrlKey || e.metaKey) && (e.key === 'u' || e.key === 'U')) ||
-        (e.metaKey && e.altKey && (e.key === 'u' || e.key === 'U'))
-      ) {
-        e.preventDefault();
-        setShortcutNotice('View Source shortcut is disabled during the examination.');
-        return;
-      }
-
-      // 8. If candidate is NOT typing in an input, provide helpful exam option navigation
+      // If candidate is NOT typing in an input, provide helpful exam option navigation
       if (!isInput) {
         if (['1', 'a', 'A'].includes(e.key)) {
           handleSelectOption('A');
@@ -1540,6 +1726,22 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     };
   }, [currentScreen, activeSession, currentQuestionIndex]);
 
+  // Restricted Examination Mode: Unload and Close Tab Guard
+  useEffect(() => {
+    if (currentScreen !== 'active_exam' || !isExamRunning) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = 'An examination is currently in progress. Exiting will disrupt your proctored session.';
+      return e.returnValue;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [currentScreen, isExamRunning]);
+
   // Restricted Examination Mode: Fullscreen & Tab Focus Monitors with Debounce
   useEffect(() => {
     if (currentScreen !== 'active_exam' || !activeSession) return;
@@ -1566,18 +1768,26 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
 
     const handleVisibilityChange = () => {
       const now = Date.now();
-      if (document.hidden && now - lastInterruptionTimeRef.current > cooldownMs) {
-        lastInterruptionTimeRef.current = now;
-        setWarningType('tab_switch');
-        setWarningCount((prev) => prev + 1);
-        setWarningModalOpen(true);
-        recordCandidateEvent(activeSession.session_id, {
-          event_type: 'EXAM_TAB_HIDDEN',
-          source: 'browser',
-          metadata: { hidden: true, client_timestamp: new Date().toISOString() },
-          is_simulated: false,
-        });
-      } else if (!document.hidden) {
+      if (document.hidden) {
+        try {
+          document.title = '🔒 [LOCKED] Tab Switch Detected - Return to Exam';
+        } catch {}
+        if (now - lastInterruptionTimeRef.current > cooldownMs) {
+          lastInterruptionTimeRef.current = now;
+          setWarningType('tab_switch');
+          setWarningCount((prev) => prev + 1);
+          setWarningModalOpen(true);
+          recordCandidateEvent(activeSession.session_id, {
+            event_type: 'EXAM_TAB_HIDDEN',
+            source: 'browser',
+            metadata: { hidden: true, client_timestamp: new Date().toISOString(), policy_note: 'IM-102 tab switch lock engaged' },
+            is_simulated: false,
+          });
+        }
+      } else {
+        try {
+          document.title = 'FairProctor-AI | Live Examination (Full Tab Locked)';
+        } catch {}
         recordCandidateEvent(activeSession.session_id, {
           event_type: 'EXAM_TAB_VISIBLE',
           source: 'browser',
@@ -1591,9 +1801,18 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       const now = Date.now();
       if (now - lastInterruptionTimeRef.current > cooldownMs && !document.fullscreenElement) {
         lastInterruptionTimeRef.current = now;
-        setWarningType('fullscreen_exit');
+        setWarningType('tab_switch');
         setWarningCount((prev) => prev + 1);
         setWarningModalOpen(true);
+        try {
+          document.title = '🔒 [LOCKED] Tab / Window Unfocused - Return to Exam';
+        } catch {}
+        recordCandidateEvent(activeSession.session_id, {
+          event_type: 'EXAM_TAB_HIDDEN',
+          source: 'browser',
+          metadata: { window_blurred: true, client_timestamp: new Date().toISOString(), policy_note: 'IM-102 window blur tab lock engaged' },
+          is_simulated: false,
+        });
       }
     };
 
@@ -1719,6 +1938,11 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       }
       setIsExamRunning(false);
       handleStopDesktopMedia();
+      if ('keyboard' in navigator && (navigator as any).keyboard?.unlock) {
+        try {
+          (navigator as any).keyboard.unlock();
+        } catch {}
+      }
       try {
         if (document.fullscreenElement) {
           document.exitFullscreen().catch(() => {});
@@ -1744,39 +1968,39 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
 
   return (
     <div className="max-w-4xl mx-auto space-y-5 animate-fade-in relative">
-      {/* Fullscreen Interruption Warning Modal (Restricted Mode) */}
+      {/* Fullscreen & Tab Switch Interruption Warning Modal (Restricted Mode) */}
       {warningModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-white rounded-2xl border-2 border-amber-500 shadow-2xl p-6 space-y-4 text-center animate-scale-up">
-            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
-              <AlertCircle className="w-6 h-6" />
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-2xl border-2 border-rose-500 shadow-2xl p-6 space-y-4 text-center animate-scale-up">
+            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
+              <Lock className="w-6 h-6" />
             </div>
 
             <div className="space-y-1">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 uppercase">
-                Restricted Mode Alert #{warningCount}
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 uppercase tracking-wide">
+                {warningType === 'tab_switch' ? '🔒 TAB SWITCH LOCKED' : '🔒 FULLSCREEN LOCKED'} #{warningCount}
               </span>
               <h3 className="text-base font-bold text-slate-900">
-                {warningType === 'fullscreen_exit' ? 'Fullscreen Exited' : 'Tab Switched'}
+                {warningType === 'tab_switch' ? 'Tab Switching Locked' : 'Fullscreen Exited'}
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                {warningType === 'fullscreen_exit'
-                  ? 'Continuous fullscreen required during exam.'
-                  : 'Tab switch detected and logged for review.'}
+                {warningType === 'tab_switch'
+                  ? 'Tab switching is strictly locked during the examination. Your session has been frozen to protect exam integrity.'
+                  : 'Continuous full tab examination mode is required. Please re-enter full tab to unlock your exam interface.'}
               </p>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 text-left">
-              <strong className="text-slate-800 block mb-0.5">Policy IM-102 Notice:</strong>
-              Interruptions do NOT automatically fail you. Please return to fullscreen.
+              <strong className="text-slate-800 block mb-0.5">Policy IM-102 Safeguard:</strong>
+              Interruptions do NOT automatically fail you. Click below to re-lock the fullscreen tab and resume your examination.
             </div>
 
             <button
               onClick={handleAcknowledgeWarning}
-              className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               <Maximize className="w-4 h-4" />
-              <span>Return to Exam</span>
+              <span>Return & Re-Lock Full Tab Exam</span>
             </button>
           </div>
         </div>
@@ -2590,6 +2814,19 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                 </span>
               </div>
             </div>
+
+            <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 flex items-start gap-2.5">
+              <Lock className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <strong className="text-slate-900 block mb-0.5 text-xs">Locked Keyboard & Tab Switching Guardrails</strong>
+                <span className="text-slate-600 text-[11px] leading-tight block">
+                  To protect your session state and examination integrity, tab switching and disruptive shortcuts are locked once fullscreen opens: Tab Switching (Ctrl+Tab, Ctrl+1-9, Alt+Tab), Escape, Page Reload (F5 / Ctrl+R), Tab & Window shortcuts (Ctrl+W, Ctrl+T), Navigation (Alt+F4), F11 fullscreen toggle, DevTools (F12), and Screen Captures.
+                </span>
+                <span className="text-teal-700 text-[10px] font-semibold block mt-1">
+                  Candidate typing in the scratchpad and answer options (A–D, 1–4, Arrow keys) remain fully functional.
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-900 leading-tight">
@@ -2646,17 +2883,18 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
 
       {/* SCREEN 8: ACTIVE EXAMINATION INTERFACE */}
       {currentScreen === 'active_exam' && (
-        <div className="space-y-4">
+        <div className={`space-y-4 transition-all duration-300 ${warningModalOpen ? 'filter blur-md pointer-events-none select-none' : ''}`}>
           {/* Keyboard Shortcut & Screen Capture Warning Banner */}
           {shortcutNotice && (
             <div className="p-3 rounded-xl bg-amber-50 border-2 border-amber-300 text-xs text-amber-900 flex items-center justify-between shadow-xs animate-fade-in">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                <span>{shortcutNotice}</span>
+                <Lock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span className="font-medium">{shortcutNotice}</span>
               </div>
               <button
                 onClick={() => setShortcutNotice(null)}
                 className="text-amber-600 hover:text-amber-800 font-bold ml-2 text-sm"
+                aria-label="Dismiss notice"
               >
                 &times;
               </button>
@@ -2684,6 +2922,11 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                 <span>RESTRICTED MODE</span>
               </span>
 
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                <Lock className="w-3 h-3 text-amber-600" />
+                <span>KEYBOARD &amp; TAB SWITCH LOCKED</span>
+              </span>
+
               <button
                 onClick={() => setCurrentScreen('submission_confirm')}
                 className="px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors shadow-xs"
@@ -2706,7 +2949,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
           {/* Main Question + Video Preview Split */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Question Panel */}
-            <div className="lg:col-span-2 p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3.5">
+            <div className="lg:col-span-2 p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3.5 select-none">
               <div className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">
                 {currentQ.category}
               </div>
@@ -2757,7 +3000,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                     setCandidateNotes((prev) => ({ ...prev, [currentQ.id]: val }));
                   }}
                   placeholder="Type rough work notes, formulas, or answer justification here..."
-                  className="w-full p-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20"
+                  className="w-full p-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-800 select-text focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20"
                 />
               </div>
 

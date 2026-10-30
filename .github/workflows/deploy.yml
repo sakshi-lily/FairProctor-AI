@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   BACKEND_IMAGE_NAME: fairproctor-backend
   FRONTEND_IMAGE_NAME: fairproctor-frontend
 
@@ -126,8 +126,22 @@ jobs:
     name: Deploy to AWS EC2 Server
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: ${{ secrets.EC2_HOST != '' }}
     steps:
+      - name: Verify Deployment Secrets
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          if [ -z "$EC2_HOST" ]; then
+            echo "::error::Secret EC2_HOST is missing! Add it in GitHub Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          if [ -z "$EC2_SSH_KEY" ]; then
+            echo "::error::Secret EC2_SSH_KEY is missing! Add it in GitHub Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "All EC2 deployment secrets verified."
+
       - name: Checkout Code
         uses: actions/checkout@v4
 

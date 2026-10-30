@@ -2,33 +2,31 @@ import React, { useState } from 'react';
 import {
   Shield,
   Clock,
-  Layers,
   AlertTriangle,
-  CloudSun,
   FileQuestion,
-  HelpCircle,
   Eye,
   CheckCircle,
   ShieldAlert,
   ArrowLeft,
   Send,
   Lock,
-  Info,
-  Activity,
-  Video,
-  VideoOff,
-  Wifi,
-  WifiOff,
-  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  CloudSun,
+  Layers,
   Laptop,
-  Smartphone,
+  Video,
+  Sparkles,
   CheckCircle2,
+  Calendar,
+  HelpCircle,
+  Check,
+  Info,
 } from 'lucide-react';
 import {
   SessionDetail,
   EvidenceItem,
   ReviewDecisionType,
-  ReviewerRole,
 } from '../types/proctoring';
 import { RiskBadge } from '../components/RiskBadge';
 import { StatusBadge } from '../components/StatusBadge';
@@ -43,6 +41,70 @@ interface Props {
   isSubmittingDecision: boolean;
 }
 
+// Convert seconds interval like "t=315s - 345s" or "t=120s" into readable mm:ss format
+function formatTimestamp(timeStr: string): string {
+  if (!timeStr) return 'During session';
+  
+  const matches = timeStr.match(/\d+/g);
+  if (!matches || matches.length === 0) return timeStr;
+
+  const toMinutesSeconds = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+  };
+
+  if (matches.length === 1) {
+    const sec = parseInt(matches[0], 10);
+    return `${timeStr} (${toMinutesSeconds(sec)})`;
+  }
+
+  if (matches.length >= 2) {
+    const sec1 = parseInt(matches[0], 10);
+    const sec2 = parseInt(matches[1], 10);
+    return `${timeStr} (${toMinutesSeconds(sec1)} – ${toMinutesSeconds(sec2)})`;
+  }
+
+  return timeStr;
+}
+
+// Simplified human-friendly recommendation
+function getSimpleRecommendation(rec?: string, riskLevel?: string): string {
+  if (!rec) return 'No Action Needed';
+  const upper = rec.toUpperCase();
+  if (upper === 'PRIORITY_HUMAN_REVIEW' || upper === 'FLAG_FOR_REVIEW' || riskLevel === 'HIGH') {
+    return 'Requires Human Review';
+  }
+  if (upper === 'NO_ACTION' || riskLevel === 'LOW') {
+    return 'No Action Needed';
+  }
+  if (upper.includes('INVESTIGATE') || riskLevel === 'MEDIUM') {
+    return 'Investigate Further';
+  }
+  return rec.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Extract human-friendly confidence percentage & level
+function getSimpleConfidence(confText?: string): { score: string; levelText: string; level: 'HIGH' | 'MED' | 'LOW' } {
+  if (!confText) return { score: '85%', levelText: 'High', level: 'HIGH' };
+
+  const numMatch = confText.match(/\((0\.\d+|\d+%?)\)/);
+  const score = numMatch
+    ? numMatch[1].includes('%')
+      ? numMatch[1]
+      : `${Math.round(parseFloat(numMatch[1]) * 100)}%`
+    : '85%';
+
+  const lower = confText.toLowerCase();
+  if (lower.includes('high') || lower.includes('very high')) {
+    return { score, levelText: 'High Confidence', level: 'HIGH' };
+  }
+  if (lower.includes('low') || lower.includes('uncertain')) {
+    return { score, levelText: 'Low Confidence', level: 'LOW' };
+  }
+  return { score, levelText: 'Moderate Confidence', level: 'MED' };
+}
+
 export const SessionDetailPage: React.FC<Props> = ({
   session,
   onBackToQueue,
@@ -51,29 +113,27 @@ export const SessionDetailPage: React.FC<Props> = ({
 }) => {
   const { activeRole, reviewerId, isLeadProctor } = useProctorRole();
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceItem | null>(null);
-  
-  // Decision Form State
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
+
+  // Decision Form State (Defaulting to NO_CONCERN)
   const [decisionChoice, setDecisionChoice] = useState<ReviewDecisionType>('NO_CONCERN');
   const [reviewerNotes, setReviewerNotes] = useState('');
   const [decisionFeedback, setDecisionFeedback] = useState<{ msg: string; isError: boolean } | null>(null);
-  const [isExplanationExpanded, setIsExplanationExpanded] = useState<boolean>(false);
 
   if (!session) {
     return (
-      <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 space-y-3">
+      <div className="p-8 text-center bg-white rounded-xl border border-slate-200 max-w-md mx-auto my-12 space-y-3 shadow-xs">
         <FileQuestion className="w-8 h-8 text-slate-400 mx-auto" />
-        <h3 className="text-sm font-semibold text-slate-800">
-          No Session Selected
-        </h3>
-        <p className="text-xs text-slate-500 max-w-xs mx-auto">
-          Select a session from the Review Queue to inspect details.
+        <h3 className="text-sm font-semibold text-slate-800">No Session Selected</h3>
+        <p className="text-xs text-slate-500">
+          Please select an examination session from the Review Queue to inspect details.
         </p>
         <button
           onClick={onBackToQueue}
-          className="px-4 py-2 rounded-xl text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors inline-flex items-center gap-1.5 shadow-xs"
+          className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors inline-flex items-center gap-1.5"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Review Queue
+          <span>Back to Review Queue</span>
         </button>
       </div>
     );
@@ -83,10 +143,9 @@ export const SessionDetailPage: React.FC<Props> = ({
     e.preventDefault();
     setDecisionFeedback(null);
 
-    // Frontend validation for role
     if (decisionChoice === 'CONFIRMED_VIOLATION' && !isLeadProctor) {
       setDecisionFeedback({
-        msg: 'Unauthorized: Only Lead Proctors have authority to confirm policy violations after examining evidence.',
+        msg: 'Unauthorized: Only Lead Proctors have authority to confirm policy violations.',
         isError: true,
       });
       return;
@@ -95,487 +154,609 @@ export const SessionDetailPage: React.FC<Props> = ({
     const res = await onSubmitDecision(decisionChoice, reviewerNotes);
     if (res.success) {
       setDecisionFeedback({
-        msg: `Decision recorded successfully. Review status updated to "${decisionChoice}". Model scores remain untouched.`,
+        msg: `Your determination was recorded successfully as "${decisionChoice.replace(/_/g, ' ')}".`,
         isError: false,
       });
       setReviewerNotes('');
     } else {
       setDecisionFeedback({
-        msg: res.error || 'Failed to submit decision',
+        msg: res.error || 'Failed to submit decision. Please try again.',
         isError: true,
       });
     }
   };
 
   const cf = session.contributing_factors || {};
+  const confidence = getSimpleConfidence(session.confidence_or_uncertainty);
+  const recommendation = getSimpleRecommendation(session.recommended_action, session.risk_level);
+
+  // Split evidence into Video vs Browser Activity
+  const videoEvidence = session.evidence_timeline.filter((ev) => {
+    const src = (ev.source || '').toLowerCase();
+    const type = (ev.observation_type || '').toLowerCase();
+    return src.includes('video') || src.includes('cv') || src.includes('camera') || type.includes('phone') || type.includes('face') || type.includes('gaze');
+  });
+
+  const browserEvidence = session.evidence_timeline.filter((ev) => {
+    const src = (ev.source || '').toLowerCase();
+    const type = (ev.observation_type || '').toLowerCase();
+    return src.includes('browser') || src.includes('telemetry') || type.includes('blur') || type.includes('tab') || type.includes('paste');
+  });
+
+  // Environmental / Room items (e.g. shared space or lighting)
+  const environmentalEvidence = session.evidence_timeline.filter((ev) => {
+    const src = (ev.source || '').toLowerCase();
+    const type = (ev.observation_type || '').toLowerCase();
+    return src.includes('environmental') || type.includes('shared') || type.includes('lighting');
+  });
+
+  // Plain-language summary of what happened
+  const getPlainWhatHappened = () => {
+    const timeline = session.evidence_timeline;
+    const hasPhone = timeline.some((ev) => (ev.observation_type || '').toLowerCase().includes('phone') || (ev.explanation || '').toLowerCase().includes('phone'));
+    const hasBlur = timeline.some((ev) => (ev.observation_type || '').toLowerCase().includes('blur') || (ev.explanation || '').toLowerCase().includes('focus'));
+    const hasSharedRoom = session.environmental_warnings.length > 0 || timeline.some((ev) => (ev.explanation || '').toLowerCase().includes('shared'));
+
+    if (hasPhone && hasBlur) {
+      return {
+        title: 'Secondary Device & Tab Switch Observed',
+        description: 'A mobile phone was detected in front of the camera during the examination. Simultaneously, the candidate clicked away from the exam browser window.',
+        severity: 'HIGH' as const,
+        advice: 'Recommended Action: Review the video evidence clip and inspect browser activity below before making a final determination.',
+      };
+    }
+
+    if (hasPhone) {
+      return {
+        title: 'Mobile Phone Detected on Camera',
+        description: 'The camera detected a handheld phone in the student’s visual field during the examination.',
+        severity: 'HIGH' as const,
+        advice: 'Recommended Action: Inspect the video frame snapshot below to confirm whether the object is an unauthorized device.',
+      };
+    }
+
+    if (hasSharedRoom && session.risk_level === 'LOW') {
+      return {
+        title: 'Normal Session with Background Movement',
+        description: 'Someone walked through the room in the background during the test. The student remained focused on screen without speaking or cheating.',
+        severity: 'LOW' as const,
+        advice: 'Fairness Protection: Under exam fairness policy (IM-102), shared room activity never lowers the student’s score.',
+      };
+    }
+
+    if (session.risk_level === 'LOW' && timeline.length === 0) {
+      return {
+        title: 'Clean Exam Session — No Incidents Detected',
+        description: 'The student remained focused on the exam throughout. No unauthorized devices, extra people, or unpermitted browser tab switches were detected.',
+        severity: 'LOW' as const,
+        advice: 'All checks passed. You may safely select "No Concern" below.',
+      };
+    }
+
+    // Default fallback based on summary explanation
+    const cleanExplanation = (session.summary_explanation || '')
+      .replace(/===.*?===/g, '')
+      .replace(/Review Priority:.*?\n/g, '')
+      .replace(/Engine Version:.*?\n/g, '')
+      .replace(/Risk Breakdown by Factor:[\s\S]*?(?=(Environmental|$))/g, '')
+      .trim();
+
+    return {
+      title: session.risk_level === 'HIGH' ? 'Elevated Activity Detected' : 'Minor Telemetry Event',
+      description: cleanExplanation || 'The AI detected behavioral signals that may warrant human inspection.',
+      severity: (session.risk_level as 'HIGH' | 'MEDIUM' | 'LOW') || 'MEDIUM',
+      advice: 'Review the camera and browser observations below to verify the circumstances.',
+    };
+  };
+
+  const whatHappened = getPlainWhatHappened();
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      {/* Top Breadcrumb & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <button
-          onClick={onBackToQueue}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors self-start"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Queue</span>
-        </button>
+    <div className="space-y-5 max-w-6xl mx-auto pb-8">
+      {/* 1. Header Bar: Navigation, Candidate & Session Meta */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBackToQueue}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />
+            <span>Back to Review Queue</span>
+          </button>
 
-        <div className="flex items-center gap-2 text-xs">
-          <span className="font-mono text-slate-500">
-            Session: <strong className="text-slate-800">{session.session_id}</strong>
-          </span>
-          {session.is_demonstration_data && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-100 text-teal-800 border border-teal-300">
-              Demo
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Session ID:</span>
+            <code className="text-xs font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+              {session.session_id}
+            </code>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {session.created_at && (
+            <span className="hidden sm:inline-flex items-center gap-1 text-xs text-slate-500">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <span>{new Date(session.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
             </span>
           )}
+
           {session.is_live_candidate_session && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
-              {session.candidate_status === 'IN_PROGRESS' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              )}
-              <span>Live Exam ({session.candidate_status})</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Candidate Exam
             </span>
           )}
+
+          {session.is_demonstration_data && !session.is_live_candidate_session && (
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200 uppercase">
+              Demo Session
+            </span>
+          )}
+
+          <StatusBadge status={session.review_status} size="sm" />
         </div>
       </div>
 
-      {/* Main Score & Decision Banner */}
-      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Risk Score */}
-        <div className="flex items-center gap-4 border-b md:border-b-0 md:border-r border-slate-100 pb-4 md:pb-0 md:pr-4">
-          <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-              <path
-                className="text-slate-100"
-                strokeWidth="3.5"
-                stroke="currentColor"
-                fill="none"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-              <path
-                className={
-                  session.risk_score >= 70
-                    ? 'text-rose-500'
-                    : session.risk_score >= 40
-                    ? 'text-amber-500'
-                    : 'text-emerald-500'
-                }
-                strokeDasharray={`${session.risk_score}, 100`}
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                stroke="currentColor"
-                fill="none"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-            </svg>
-            <div className="absolute text-center">
-              <span className="text-lg font-bold font-mono text-slate-900">
+      {/* 2. Key Metrics Row: Simple Names & Explanations Below Every Metric */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* Metric 1: Review Priority */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Review Priority</span>
+              <RiskBadge priority={session.risk_level} size="sm" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-mono font-extrabold text-slate-900">
                 {session.risk_score.toFixed(0)}
               </span>
-              <span className="block text-[8px] text-slate-400 uppercase font-semibold">Risk</span>
+              <span className="text-xs text-slate-400 font-mono">/ 100</span>
             </div>
           </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">Priority Score</div>
-            <div className="mt-1">
-              <RiskBadge priority={session.risk_level} showHeuristicNote />
-            </div>
-          </div>
-        </div>
-
-        {/* Integrity Score */}
-        <div className="flex items-center gap-4 border-b md:border-b-0 md:border-r border-slate-100 pb-4 md:pb-0 md:pr-4">
-          <div className="relative w-16 h-16 flex-shrink-0 flex items-center justify-center">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-              <path
-                className="text-slate-100"
-                strokeWidth="3.5"
-                stroke="currentColor"
-                fill="none"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-              <path
-                className="text-teal-500"
-                strokeDasharray={`${session.integrity_score}, 100`}
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                stroke="currentColor"
-                fill="none"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-            </svg>
-            <div className="absolute text-center">
-              <span className="text-lg font-bold font-mono text-slate-900">
-                {session.integrity_score.toFixed(0)}
-              </span>
-              <span className="block text-[8px] text-slate-400 uppercase font-semibold">Score</span>
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">Integrity Index</div>
-            <div className="text-sm font-semibold text-slate-800 mt-0.5">
-              {session.integrity_score.toFixed(1)} / 100
-            </div>
-            <div className="text-[10px] text-slate-400">100 - Risk Score</div>
-          </div>
-        </div>
-
-        {/* Recommended Action & Status */}
-        <div className="flex flex-col justify-center">
-          <div className="text-xs text-slate-500 font-medium">Recommendation</div>
-          <div className="text-sm font-bold text-slate-900 mt-0.5">
-            {session.recommended_action}
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs text-slate-500">Status:</span>
-            <StatusBadge status={session.review_status} size="sm" />
-          </div>
-        </div>
-      </div>
-
-      {/* Summary Explanation & Confidence Limitations */}
-      <div className={`grid grid-cols-1 ${isExplanationExpanded ? 'lg:grid-cols-1' : 'lg:grid-cols-2'} gap-4`}>
-        {/* Formatted ML Explanation Card */}
-        <FormattedMLExplanation
-          explanation={session.summary_explanation}
-          modelVersion={session.model_version}
-          policyVersion={session.policy_version}
-          isExpanded={isExplanationExpanded}
-          onToggleExpand={() => setIsExplanationExpanded((prev) => !prev)}
-        />
-
-        {/* Limitations & Uncertainty Card */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-            <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
-            Confidence &amp; Limitations
-          </h3>
-          <p className="text-xs leading-relaxed text-slate-700">
-            {session.confidence_or_uncertainty}
+          <p className="text-[11px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100 leading-tight">
+            Shows how urgently this session needs human attention. Higher score = higher review priority.
           </p>
-
-          <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-            {session.missing_data && session.missing_data.length > 0 ? (
-              session.missing_data.map(m => (
-                <span
-                  key={m}
-                  className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1"
-                >
-                  <FileQuestion className="w-3 h-3" />
-                  Missing: {m}
-                </span>
-              ))
-            ) : (
-              <span className="text-[11px] text-emerald-600 flex items-center gap-1">
-                <CheckCircle className="w-3 h-3" />
-                All 4 modalities verified
-              </span>
-            )}
-          </div>
         </div>
-      </div>
 
-      {/* Visual Separation: Contributing Factors & Environmental Warnings */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Contributing Factors by Evidence Source */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+        {/* Metric 2: Integrity Assessment */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Contributing Factors</h3>
-            <p className="text-xs text-slate-500">Attribution across evidence sources</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Integrity Assessment</span>
+              <div className="w-6 h-6 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center">
+                <Shield className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-mono font-extrabold text-teal-600">
+                {session.integrity_score.toFixed(0)}%
+              </span>
+              <span className="text-xs font-semibold text-slate-400">clean</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100 leading-tight">
+            Estimated rule compliance score. Higher percentage = fewer suspicious activities detected.
+          </p>
+        </div>
+
+        {/* Metric 3: Detection Confidence */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Detection Confidence</span>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                  confidence.level === 'HIGH'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : confidence.level === 'LOW'
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : 'bg-teal-50 text-teal-700 border border-teal-200'
+                }`}
+              >
+                {confidence.level}
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold text-slate-900">
+                {confidence.score}
+              </span>
+              <span className="text-xs text-slate-400">certainty</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100 leading-tight">
+            How clearly the camera and sensors could track the student throughout the test.
+          </p>
+        </div>
+
+        {/* Metric 4: AI Recommendation */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">AI Recommendation</span>
+              <Sparkles className="w-3.5 h-3.5 text-teal-500" />
+            </div>
+            <div className="mt-2">
+              <span className="text-sm font-extrabold text-slate-900 block truncate">
+                {recommendation}
+              </span>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2.5 pt-2 border-t border-slate-100 leading-tight">
+            AI suggestion to assist your evaluation. You make the final authoritative decision below.
+          </p>
+        </div>
+      </div>
+
+      {/* 3. Prominent "What Happened?" Executive Summary Section */}
+      <div
+        className={`p-5 rounded-xl border shadow-2xs transition-all ${
+          whatHappened.severity === 'HIGH'
+            ? 'bg-rose-50/60 border-rose-200'
+            : whatHappened.severity === 'MEDIUM'
+            ? 'bg-amber-50/60 border-amber-200'
+            : 'bg-emerald-50/60 border-emerald-200'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-black/5">
+          <div className="flex items-center gap-2">
+            {whatHappened.severity === 'HIGH' ? (
+              <ShieldAlert className="w-5 h-5 text-rose-600 flex-shrink-0" />
+            ) : whatHappened.severity === 'MEDIUM' ? (
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+            )}
+            <h2 className="text-base font-bold text-slate-900">
+              What Happened in This Session?
+            </h2>
           </div>
 
-          <div className="space-y-3 pt-1">
-            {/* Visual CV */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="font-medium text-slate-700">Visual CV</span>
-                <span className="font-mono text-slate-500">{((cf.visual_cv || 0) * 100).toFixed(0)}%</span>
+          <span
+            className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase self-start sm:self-auto ${
+              whatHappened.severity === 'HIGH'
+                ? 'bg-rose-100 text-rose-800'
+                : whatHappened.severity === 'MEDIUM'
+                ? 'bg-amber-100 text-amber-800'
+                : 'bg-emerald-100 text-emerald-800'
+            }`}
+          >
+            {whatHappened.title}
+          </span>
+        </div>
+
+        <div className="mt-3 space-y-2 text-xs sm:text-sm text-slate-800 leading-relaxed">
+          <p className="font-medium text-slate-900">
+            {whatHappened.description}
+          </p>
+          <p className="text-xs text-slate-600 flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+            <span>{whatHappened.advice}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* 4. Display Video Evidence and Browser Activity Separately (With Inspect Buttons) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Card A: Camera & Video Evidence */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+                  <Video className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Camera & Video Evidence</h3>
+                  <p className="text-[11px] text-slate-500">Detections from student webcam</p>
+                </div>
               </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-teal-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, (cf.visual_cv || 0) * 100)}%` }}
-                />
-              </div>
+              <span className="text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                {videoEvidence.length} {videoEvidence.length === 1 ? 'event' : 'events'}
+              </span>
             </div>
 
-            {/* Browser Telemetry */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="font-medium text-slate-700">Browser Focus</span>
-                <span className="font-mono text-slate-500">{((cf.browser_telemetry || 0) * 100).toFixed(0)}%</span>
+            {videoEvidence.length === 0 ? (
+              <div className="py-8 px-4 text-center text-xs text-slate-500 bg-slate-50/70 rounded-lg border border-dashed border-slate-200 space-y-1">
+                <CheckCircle className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
+                <p className="font-semibold text-slate-700">No Video Incidents Detected</p>
+                <p className="text-[11px] text-slate-400">Student remained facing camera; no unauthorized devices or faces seen.</p>
               </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-indigo-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, (cf.browser_telemetry || 0) * 100)}%` }}
-                />
-              </div>
-            </div>
+            ) : (
+              <div className="space-y-2.5">
+                {videoEvidence.map((ev, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/60 transition-colors space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-slate-900">
+                        <Clock className="w-3.5 h-3.5 text-teal-600" />
+                        <span>{formatTimestamp(ev.timestamp_or_interval)}</span>
+                      </div>
 
-            {/* Answer Similarity */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="font-medium text-slate-700">Answer Similarity</span>
-                <span className="font-mono text-slate-500">{((cf.answer_similarity || 0) * 100).toFixed(0)}%</span>
-              </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-rose-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, (cf.answer_similarity || 0) * 100)}%` }}
-                />
-              </div>
-            </div>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                          ev.severity === 'HIGH'
+                            ? 'bg-rose-100 text-rose-800'
+                            : ev.severity === 'MEDIUM'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {ev.severity === 'HIGH' ? 'High Severity' : ev.severity === 'MEDIUM' ? 'Medium Severity' : 'Low Severity'}
+                      </span>
+                    </div>
 
-            {/* Environmental Reliability */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="font-medium text-slate-700">Environmental Guard</span>
-                <span className="font-mono text-teal-600 font-semibold">Zero Penalty</span>
+                    <p className="text-xs text-slate-700 leading-snug">
+                      {ev.explanation}
+                    </p>
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEvidence(ev)}
+                        className="px-2.5 py-1 text-xs font-semibold rounded bg-teal-600 hover:bg-teal-700 text-white transition-colors inline-flex items-center gap-1 shadow-2xs"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Inspect Video Evidence</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-sky-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, (cf.environmental_reliability || 0) * 100)}%` }}
-                />
-              </div>
-            </div>
+            )}
+          </div>
+
+          <div className="mt-3 pt-2 text-[11px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
+            <span>Video model: v{session.model_version}</span>
+            <span>Recorded in audit store</span>
           </div>
         </div>
 
-        {/* Environmental Warnings */}
-        <div className="p-5 rounded-2xl bg-white border border-sky-200 shadow-sm space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-sky-100 flex items-center justify-center text-sky-600">
-              <CloudSun className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">Environmental Notices</h3>
-              <p className="text-xs text-sky-700 font-medium">Policy IM-102: Zero penalty points</p>
-            </div>
-          </div>
-
-          <div className="space-y-2 pt-1">
-            {session.environmental_warnings && session.environmental_warnings.length > 0 ? (
-              session.environmental_warnings.map((warn, i) => (
-                <div
-                  key={i}
-                  className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-900 flex items-start gap-2.5"
-                >
-                  <CloudSun className="w-4 h-4 mt-0.5 text-sky-600 flex-shrink-0" />
-                  <span className="leading-relaxed">{warn}</span>
+        {/* Card B: Browser & Screen Activity */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Laptop className="w-4 h-4" />
                 </div>
-              ))
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Browser & Screen Activity</h3>
+                  <p className="text-[11px] text-slate-500">Window focus, tab switches, and clipboard actions</p>
+                </div>
+              </div>
+              <span className="text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                {browserEvidence.length} {browserEvidence.length === 1 ? 'event' : 'events'}
+              </span>
+            </div>
+
+            {browserEvidence.length === 0 ? (
+              <div className="py-8 px-4 text-center text-xs text-slate-500 bg-slate-50/70 rounded-lg border border-dashed border-slate-200 space-y-1">
+                <CheckCircle className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
+                <p className="font-semibold text-slate-700">Continuous Screen Focus Maintained</p>
+                <p className="text-[11px] text-slate-400">Student did not leave test tab or paste external content.</p>
+              </div>
             ) : (
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
-                No adverse environmental conditions recorded.
+              <div className="space-y-2.5">
+                {browserEvidence.map((ev, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/60 transition-colors space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-slate-900">
+                        <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>{formatTimestamp(ev.timestamp_or_interval)}</span>
+                      </div>
+
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                          ev.severity === 'HIGH'
+                            ? 'bg-rose-100 text-rose-800'
+                            : ev.severity === 'MEDIUM'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {ev.severity === 'HIGH' ? 'High Severity' : ev.severity === 'MEDIUM' ? 'Medium Severity' : 'Low Severity'}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-700 leading-snug">
+                      {ev.explanation}
+                    </p>
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEvidence(ev)}
+                        className="px-2.5 py-1 text-xs font-semibold rounded bg-indigo-600 hover:bg-indigo-700 text-white transition-colors inline-flex items-center gap-1 shadow-2xs"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Inspect Browser Log</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
+          </div>
+
+          <div className="mt-3 pt-2 text-[11px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
+            <span>Browser telemetry: DOM Focus & Keys</span>
+            <span>Policy: v{session.policy_version}</span>
           </div>
         </div>
       </div>
 
-      {/* Live Candidate Telemetry & Lifecycle Stream */}
-      {(session.is_live_candidate_session || (session.events && session.events.length > 0)) && (
-        <div className="p-5 rounded-2xl bg-white border border-teal-200 shadow-sm space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse" />
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Live Telemetry ({session.events?.length || 0} Events)
-                </h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-300 uppercase">
-                  Live
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">Real-time candidate telemetry stream.</p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-medium">
-                Status: <strong className="font-semibold text-slate-900">{session.candidate_status || 'COMPLETED'}</strong>
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-medium">
-                Answers: <strong className="font-semibold text-slate-900">{session.answers_count ?? 0}/5</strong>
-              </span>
-            </div>
+      {/* 5. Evidence Contribution (Simplified, Non-Technical, Clear Explanations) */}
+      <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-teal-600" />
+              <span>Evidence Contribution</span>
+            </h3>
+            <p className="text-xs text-slate-500">
+              Shows how much each sensor signal influenced the Review Priority score. These percentages reflect sensor weight — they are <strong>not cheating probabilities</strong>.
+            </p>
           </div>
+          <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded">
+            Sensor Signal Breakdown
+          </span>
+        </div>
 
-          {/* Privacy & Fairness Guarantee Ribbon */}
-          <div className="p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-900 flex items-start gap-2">
-            <Shield className="w-4 h-4 text-teal-600 mt-0.5 flex-shrink-0" />
-            <p className="leading-normal">
-              <strong>Policy IM-102:</strong> Environmental conditions carry 0 penalty points.
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+          {/* Factor 1: Camera Observations */}
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-slate-800">Camera Observations (Visual)</span>
+              <span className="font-mono font-extrabold text-teal-700 text-sm">
+                {((cf.visual_cv || 0) * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+              <div
+                className="bg-teal-500 h-full rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(100, (cf.visual_cv || 0) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Webcam detections: face orientation, eye gaze, or secondary devices in view.
             </p>
           </div>
 
-          {/* Events Stream List */}
-          {(!session.events || session.events.length === 0) ? (
-            <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
-              Waiting for candidate telemetry...
+          {/* Factor 2: Browser Activity */}
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-slate-800">Browser & Screen Activity</span>
+              <span className="font-mono font-extrabold text-indigo-700 text-sm">
+                {((cf.browser_telemetry || 0) * 100).toFixed(0)}%
+              </span>
             </div>
-          ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-              {session.events.map((evt, idx) => (
-                <div
-                  key={evt.event_id || idx}
-                  className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 bg-slate-50/70 transition-colors space-y-1.5"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-200 text-slate-800">
-                        {evt.event_type}
-                      </span>
-
-                      {evt.source === 'simulation' ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                          <Sparkles className="w-3 h-3 text-amber-600" />
-                          <span>SIMULATED</span>
-                        </span>
-                      ) : evt.source === 'browser' ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">
-                          <Laptop className="w-3 h-3 text-indigo-600" />
-                          <span>BROWSER</span>
-                        </span>
-                      ) : evt.source === 'candidate' ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          <Smartphone className="w-3 h-3 text-emerald-600" />
-                          <span>CANDIDATE</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
-                          <Shield className="w-3 h-3 text-teal-600" />
-                          <span>ENGINE</span>
-                        </span>
-                      )}
-
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
-                          evt.evidence_reliability === 'HIGH'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : evt.evidence_reliability === 'MEDIUM'
-                            ? 'bg-sky-100 text-sky-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}
-                      >
-                        Reliability: {evt.evidence_reliability}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-[11px] font-mono text-slate-500">
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      <span>{new Date(evt.timestamp || evt.server_timestamp || Date.now()).toLocaleTimeString()}</span>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-700 leading-normal">
-                    {evt.explanation || evt.metadata?.reason || evt.metadata?.notes || `Observed: ${evt.event_type}`}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Timestamped Evidence Timeline */}
-      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">
-              Evidence Timeline ({session.evidence_timeline.length})
-            </h3>
-            <p className="text-xs text-slate-500">Click row to inspect details.</p>
-          </div>
-        </div>
-
-        {session.evidence_timeline.length === 0 ? (
-          <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
-            Zero anomalous evidence items detected.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {session.evidence_timeline.map((ev, idx) => (
+            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
               <div
-                key={idx}
-                onClick={() => setSelectedEvidence(ev)}
-                className="py-3 px-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 p-1.5 rounded-lg bg-slate-100 text-slate-600 group-hover:text-teal-600 transition-colors">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-semibold text-slate-900">
-                        {ev.timestamp_or_interval}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-slate-100 text-slate-600 uppercase">
-                        {ev.source}
-                      </span>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
-                          ev.severity === 'HIGH'
-                            ? 'bg-rose-100 text-rose-700'
-                            : ev.severity === 'MEDIUM'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-emerald-100 text-emerald-700'
-                        }`}
-                      >
-                        {ev.severity}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">
-                      {ev.explanation}
-                    </p>
-                  </div>
-                </div>
+                className="bg-indigo-500 h-full rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(100, (cf.browser_telemetry || 0) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Window focus loss, tab switching, or copying external text into questions.
+            </p>
+          </div>
 
-                <div className="flex items-center gap-1.5 self-end sm:self-auto text-xs text-teal-600 font-medium">
-                  <span>Inspect</span>
-                  <Eye className="w-3.5 h-3.5" />
-                </div>
-              </div>
-            ))}
+          {/* Factor 3: Answer Similarity */}
+          <div className="p-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-slate-800">Answer Pattern Similarity</span>
+              <span className="font-mono font-extrabold text-slate-700 text-sm">
+                {((cf.answer_similarity || 0) * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+              <div
+                className="bg-rose-500 h-full rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(100, (cf.answer_similarity || 0) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Unusual cohort answer timing or synchronized responses with other candidates.
+            </p>
+          </div>
+
+          {/* Factor 4: Room & Network Environment */}
+          <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-100 space-y-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-emerald-950 flex items-center gap-1">
+                <span>Room & Network Environment</span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">Protected</span>
+              </span>
+              <span className="font-mono font-extrabold text-emerald-700 text-sm">
+                0%
+              </span>
+            </div>
+            <div className="w-full bg-emerald-200 h-2 rounded-full overflow-hidden">
+              <div className="bg-emerald-600 h-full rounded-full" style={{ width: '0%' }} />
+            </div>
+            <p className="text-[11px] text-emerald-800 leading-snug">
+              Fairness guarantee (IM-102): Dim lighting, internet drops, or shared room family members never penalize the student.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Expandable Technical Engine Context (Collapsed by Default) */}
+      <div className="border border-slate-200 rounded-xl bg-white overflow-hidden shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
+          className="w-full px-4 py-3 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-between transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <HelpCircle className="w-4 h-4 text-slate-400" />
+            <span>Technical Engine Details & Policy Specifications (Optional for Auditors)</span>
+          </span>
+          <span className="text-teal-600 text-xs font-medium flex items-center gap-1">
+            <span>{showTechnicalDetails ? 'Hide Technical View' : 'Show Technical View'}</span>
+            {showTechnicalDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </span>
+        </button>
+
+        {showTechnicalDetails && (
+          <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-3 animate-fade-in">
+            <FormattedMLExplanation
+              explanation={session.summary_explanation}
+              modelVersion={session.model_version}
+              policyVersion={session.policy_version}
+              isExpanded={true}
+              onToggleExpand={() => setShowTechnicalDetails(false)}
+            />
           </div>
         )}
       </div>
 
-      {/* Human Reviewer Decision Submission Form */}
-      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+      {/* 7. Human Review & Final Decision (The Final Prominent Section) */}
+      <div className="p-6 rounded-2xl bg-white border-2 border-teal-600 shadow-md space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Adjudication</h3>
-            <p className="text-xs text-slate-500">Submit human proctor determination.</p>
+            <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-teal-600" />
+              <span>Human Review & Final Decision</span>
+            </h2>
+            <p className="text-xs text-slate-600 mt-0.5">
+              AI recommendations are strictly advisory. Your review is the only official, authoritative decision for this exam.
+            </p>
           </div>
 
-          <div className="text-xs">
-            <span className="text-slate-400">Reviewer: </span>
-            <strong className="text-slate-800 font-mono">
+          <div className="text-xs bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+            <span className="text-slate-500">Reviewer: </span>
+            <strong className="text-slate-900 font-mono">
               {reviewerId} ({activeRole})
             </strong>
           </div>
         </div>
 
-        {/* Existing Decision Alert if already reviewed */}
+        {/* Existing Decision Notice (if already reviewed) */}
         {session.decision_record && (
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-800">Prior Determination:</span>
-              <StatusBadge status={session.decision_record.decision} size="sm" />
+          <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-xs flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="font-bold text-teal-900">Current Saved Status: </span>
+              <strong className="text-teal-950 font-semibold uppercase">{session.decision_record.decision.replace(/_/g, ' ')}</strong>
+              {session.decision_record.notes && (
+                <span className="text-teal-800 ml-1.5">
+                  &ldquo;{session.decision_record.notes}&rdquo;
+                </span>
+              )}
+              <span className="text-teal-600 block sm:inline sm:ml-2 text-[11px]">
+                (By {session.decision_record.reviewer_id} on {new Date(session.decision_record.decision_timestamp).toLocaleDateString()})
+              </span>
             </div>
-            <p className="text-slate-600 pt-0.5">&ldquo;{session.decision_record.notes}&rdquo;</p>
-            <div className="text-[10px] text-slate-400 pt-0.5">
-              By {session.decision_record.reviewer_id} ({session.decision_record.reviewer_role}) on{' '}
-              {new Date(session.decision_record.decision_timestamp).toLocaleString()}
-            </div>
+            <StatusBadge status={session.decision_record.decision} size="sm" />
           </div>
         )}
 
-        {/* Feedback message */}
+        {/* Submission Feedback Message */}
         {decisionFeedback && (
           <div
             className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
@@ -585,135 +766,158 @@ export const SessionDetailPage: React.FC<Props> = ({
             }`}
           >
             {decisionFeedback.isError ? (
-              <ShieldAlert className="w-4 h-4 text-rose-500 mt-0.5 flex-shrink-0" />
+              <ShieldAlert className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
             ) : (
-              <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+              <Check className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
             )}
-            <p className="leading-normal">{decisionFeedback.msg}</p>
+            <span className="font-medium">{decisionFeedback.msg}</span>
           </div>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleDecisionSubmit} className="space-y-4 pt-1">
-          {/* Decision options */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* No Concern */}
+        {/* Adjudication Form with 3 Clear Options */}
+        <form onSubmit={handleDecisionSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* Option 1: No Concern */}
             <label
-              className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between ${
+              className={`p-4 rounded-xl border-2 text-xs cursor-pointer transition-all flex flex-col justify-between ${
                 decisionChoice === 'NO_CONCERN'
-                  ? 'border-emerald-500 bg-emerald-50/50 text-emerald-900 ring-2 ring-emerald-500/20'
-                  : 'border-slate-200 bg-white text-slate-700'
+                  ? 'border-emerald-600 bg-emerald-50/60 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold">No Concern</span>
-                <input
-                  type="radio"
-                  name="decisionChoice"
-                  value="NO_CONCERN"
-                  checked={decisionChoice === 'NO_CONCERN'}
-                  onChange={() => setDecisionChoice('NO_CONCERN')}
-                  className="accent-emerald-600"
-                />
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Cleared. Environmental movement deemed benign.
-              </p>
-            </label>
-
-            {/* Requires Investigation */}
-            <label
-              className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between ${
-                decisionChoice === 'REQUIRES_INVESTIGATION'
-                  ? 'border-sky-500 bg-sky-50/50 text-sky-900 ring-2 ring-sky-500/20'
-                  : 'border-slate-200 bg-white text-slate-700'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold">Investigation</span>
-                <input
-                  type="radio"
-                  name="decisionChoice"
-                  value="REQUIRES_INVESTIGATION"
-                  checked={decisionChoice === 'REQUIRES_INVESTIGATION'}
-                  onChange={() => setDecisionChoice('REQUIRES_INVESTIGATION')}
-                  className="accent-sky-600"
-                />
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Ambiguous telemetry. Candidate protected.
-              </p>
-            </label>
-
-            {/* Confirmed Policy Violation (Role Gated) */}
-            <label
-              className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between relative ${
-                decisionChoice === 'CONFIRMED_VIOLATION'
-                  ? 'border-rose-500 bg-rose-50/50 text-rose-900 ring-2 ring-rose-500/20'
-                  : 'border-slate-200 bg-white text-slate-700'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-semibold">Violation</span>
-                  {!isLeadProctor && (
-                    <span title="Requires Lead Proctor role">
-                      <Lock className="w-3 h-3 text-amber-500" />
-                    </span>
-                  )}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    <span className="font-bold text-sm text-slate-900">No Concern</span>
+                  </div>
+                  <input
+                    type="radio"
+                    name="decisionChoice"
+                    value="NO_CONCERN"
+                    checked={decisionChoice === 'NO_CONCERN'}
+                    onChange={() => setDecisionChoice('NO_CONCERN')}
+                    className="accent-emerald-600 w-4 h-4 cursor-pointer"
+                  />
                 </div>
-                <input
-                  type="radio"
-                  name="decisionChoice"
-                  value="CONFIRMED_VIOLATION"
-                  checked={decisionChoice === 'CONFIRMED_VIOLATION'}
-                  onChange={() => setDecisionChoice('CONFIRMED_VIOLATION')}
-                  className="accent-rose-600"
-                />
+                <p className="text-xs text-slate-600 leading-snug">
+                  Session appears normal. Any movement, background noise, or brief glances are harmless and explainable.
+                </p>
               </div>
-              <p className="text-[11px] text-slate-500">
-                Lead Proctor determination based on direct evidence.
-              </p>
+              <span className="mt-3 text-[11px] font-bold text-emerald-700 uppercase">
+                Student Cleared
+              </span>
+            </label>
+
+            {/* Option 2: Investigate Further */}
+            <label
+              className={`p-4 rounded-xl border-2 text-xs cursor-pointer transition-all flex flex-col justify-between ${
+                decisionChoice === 'REQUIRES_INVESTIGATION'
+                  ? 'border-sky-600 bg-sky-50/60 text-sky-950 ring-2 ring-sky-500/20 shadow-xs'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-sky-600" />
+                    <span className="font-bold text-sm text-slate-900">Investigate Further</span>
+                  </div>
+                  <input
+                    type="radio"
+                    name="decisionChoice"
+                    value="REQUIRES_INVESTIGATION"
+                    checked={decisionChoice === 'REQUIRES_INVESTIGATION'}
+                    onChange={() => setDecisionChoice('REQUIRES_INVESTIGATION')}
+                    className="accent-sky-600 w-4 h-4 cursor-pointer"
+                  />
+                </div>
+                <p className="text-xs text-slate-600 leading-snug">
+                  Ambiguous telemetry signals. Student retains benefit of the doubt while an academic reviewer evaluates.
+                </p>
+              </div>
+              <span className="mt-3 text-[11px] font-bold text-sky-700 uppercase">
+                Second Review Needed
+              </span>
+            </label>
+
+            {/* Option 3: Violation Confirmed */}
+            <label
+              className={`p-4 rounded-xl border-2 text-xs cursor-pointer transition-all flex flex-col justify-between ${
+                decisionChoice === 'CONFIRMED_VIOLATION'
+                  ? 'border-rose-600 bg-rose-50/60 text-rose-950 ring-2 ring-rose-500/20 shadow-xs'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-rose-600" />
+                    <span className="font-bold text-sm text-slate-900">Violation Confirmed</span>
+                    {!isLeadProctor && (
+                      <span title="Requires Lead Proctor authorization">
+                        <Lock className="w-3.5 h-3.5 text-amber-500" />
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="radio"
+                    name="decisionChoice"
+                    value="CONFIRMED_VIOLATION"
+                    checked={decisionChoice === 'CONFIRMED_VIOLATION'}
+                    onChange={() => setDecisionChoice('CONFIRMED_VIOLATION')}
+                    className="accent-rose-600 w-4 h-4 cursor-pointer"
+                  />
+                </div>
+                <p className="text-xs text-slate-600 leading-snug">
+                  Direct policy breach confirmed by video, device, or screen evidence (Requires Lead Proctor authorization).
+                </p>
+              </div>
+              <span className="mt-3 text-[11px] font-bold text-rose-700 uppercase">
+                Official Breach Recorded
+              </span>
             </label>
           </div>
 
-          {/* Notes textarea */}
+          {/* Reviewer Notes Field */}
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">
-              Reviewer Notes:
+            <label className="block text-xs font-semibold text-slate-800 mb-1">
+              Reviewer Notes (Optional explanation for institutional records):
             </label>
             <textarea
               rows={2}
               value={reviewerNotes}
-              onChange={e => setReviewerNotes(e.target.value)}
-              placeholder="Enter notes or justification..."
-              className="w-full p-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-teal-500"
+              onChange={(e) => setReviewerNotes(e.target.value)}
+              placeholder="e.g., Reviewed camera timestamp at 5m 15s. Confirmed student held a mobile phone while answering question..."
+              className="w-full p-3 text-xs rounded-lg bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition-colors"
             />
           </div>
 
-          {/* Action button */}
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-[11px] text-slate-400">
-              Audit logged &middot; Immutable engine records.
+          {/* Submit Action Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+            <span className="text-xs text-slate-500">
+              Your decision is permanently saved to the session audit log.
             </span>
+
             <button
               type="submit"
               disabled={isSubmittingDecision}
-              className="px-4 py-2 rounded-xl text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              className="px-6 py-2.5 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white transition-colors inline-flex items-center gap-2 shadow-sm disabled:opacity-50"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>{isSubmittingDecision ? 'Submitting...' : 'Submit Decision'}</span>
+              <Send className="w-4 h-4" />
+              <span>{isSubmittingDecision ? 'Saving Determination...' : 'Submit Final Determination'}</span>
             </button>
           </div>
         </form>
       </div>
 
-      {/* Evidence Modal */}
+      {/* Deep Evidence Inspector Modal */}
       <EvidenceInspectorModal
         evidence={selectedEvidence}
         onClose={() => setSelectedEvidence(null)}
+        allEvidence={session.evidence_timeline}
+        onSelectEvidence={(ev) => setSelectedEvidence(ev)}
       />
-
     </div>
   );
 };

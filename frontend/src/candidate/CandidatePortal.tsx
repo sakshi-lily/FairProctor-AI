@@ -12,6 +12,7 @@ import {
   Lock,
   Clock,
   CheckCircle,
+  CheckCircle2,
   AlertTriangle,
   ChevronRight,
   ChevronLeft,

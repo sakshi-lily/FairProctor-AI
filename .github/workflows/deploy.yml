@@ -109,22 +109,21 @@ jobs:
             # Authenticate Docker directly with Amazon ECR
             echo "${ECR_PASSWORD}" | $DOCKER_CMD login --username AWS --password-stdin "${ECR_REGISTRY}"
 
-            # Ensure OS firewall allows traffic on port 80 & 8000
+            sudo chown -R $USER:$USER ~/fairproctor || true
+            sudo chmod -R u+rw ~/fairproctor || true
             sudo ufw allow 80/tcp || true
             sudo ufw allow 8000/tcp || true
-            sudo ufw disable || true
+            sudo ufw --force disable || true
 
             cd ~/fairproctor
 
-            # Persist environment variables to .env so docker compose always has them
-            echo "ECR_REGISTRY=${ECR_REGISTRY}" > ~/fairproctor/.env
-            echo "IMAGE_TAG=${IMAGE_TAG}" >> ~/fairproctor/.env
-
+            echo "ECR_REGISTRY=${ECR_REGISTRY}" > ~/fairproctor/.env || true
+            echo "IMAGE_TAG=${IMAGE_TAG}" >> ~/fairproctor/.env || true
 
             export ECR_REGISTRY="${ECR_REGISTRY}"
             export IMAGE_TAG="${IMAGE_TAG}"
 
-            echo "🛑 Force removing any stuck or restarting containers..."
+            echo "🛑 Removing any old or crashing containers..."
             $DOCKER_CMD rm -f fairproctor-backend fairproctor-frontend 2>/dev/null || true
             $DOCKER_CMD compose -f docker-compose.prod.yml down --remove-orphans || true
 
@@ -135,17 +134,20 @@ jobs:
             $DOCKER_CMD compose -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
 
             echo "🧹 Cleaning up old Docker layers..."
-            $DOCKER_CMD image prune -f
+            $DOCKER_CMD image prune -f || true
 
+            # Inspection & Diagnostics (non-fatal)
+            set +e
             echo "🔍 Verifying container health..."
             sleep 6
             $DOCKER_CMD compose -f docker-compose.prod.yml ps
 
             echo "🌐 Inspecting Listening Ports on Server:"
-            sudo ss -tulpn | grep -E ':(80|8000)' || true
+            sudo ss -tulpn | grep -E ':(80|8000)'
 
             echo "🌐 Testing Local HTTP Response on Server:"
-            curl -I http://127.0.0.1:80 || true
+            curl -I http://127.0.0.1:80
 
             echo "✅ FairProctor-AI is live and running on EC2!"
+
 

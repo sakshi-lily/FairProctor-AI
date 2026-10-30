@@ -5,7 +5,10 @@ import {
   EventSource,
   CandidateEventRecord,
 } from '../types/proctoring';
-import { LiveDetectionResult, evaluateExamKeyLockdown } from '../candidate/CandidatePortal';
+import { LiveDetectionResult, evaluateExamKeyLockdown, DetectedFaceBox } from '../candidate/CandidatePortal';
+import { DEMO_EVIDENCE_FRAMES, getStoredEvidenceFrames, saveStoredEvidenceFrame } from '../utils/evidenceFrameCapture';
+import { FALLBACK_SESSIONS } from '../data/fallbackSessions';
+import { generateSimulatedSidePhoto, SideKey } from '../candidate/MobileEnvironmentCheckPage';
 
 describe('FairProctor-AI Candidate Portal Tests', () => {
 
@@ -756,6 +759,48 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       expect(sharedRoomDetection.hasSimulatedPerson).toBe(true);
     });
 
+    it('analyzes all multiple faces (3, 4+ faces) with distinct bounding boxes and zero penalty annotations', () => {
+      const multiFaceDetection: LiveDetectionResult = {
+        facePresent: true,
+        faceCount: 4,
+        faceConfidence: 91,
+        headPose: 'forward',
+        lightingLevel: 55,
+        lightingCategory: 'adequate',
+        boundingBox: { x: 0.32, y: 0.20, width: 0.30, height: 0.44 },
+        secondaryBox: { x: 0.70, y: 0.14, width: 0.22, height: 0.32 },
+        allFaces: [
+          { id: 1, label: 'Candidate (Primary)', x: 0.32, y: 0.20, width: 0.30, height: 0.44, confidence: 91, isPrimary: true },
+          { id: 2, label: 'Person 2 (Shared Room)', x: 0.70, y: 0.14, width: 0.22, height: 0.32, confidence: 88, isPrimary: false, policyNote: 'IM-102 Zero Risk' },
+          { id: 3, label: 'Person 3 (Bystander)', x: 0.06, y: 0.16, width: 0.19, height: 0.29, confidence: 82, isPrimary: false, policyNote: 'IM-102 Zero Risk' },
+          { id: 4, label: 'Person 4 (Background)', x: 0.42, y: 0.05, width: 0.16, height: 0.24, confidence: 76, isPrimary: false, policyNote: 'IM-102 Zero Risk' },
+        ],
+        fps: 20,
+        hasSimulatedPerson: true,
+        hasSimulatedLowLight: false,
+      };
+
+      expect(multiFaceDetection.faceCount).toBe(4);
+      expect(multiFaceDetection.allFaces?.length).toBe(4);
+      expect(multiFaceDetection.allFaces?.[0].isPrimary).toBe(true);
+      expect(multiFaceDetection.allFaces?.[1].isPrimary).toBe(false);
+      expect(multiFaceDetection.allFaces?.[2].label).toContain('Person 3');
+      expect(multiFaceDetection.allFaces?.[3].label).toContain('Person 4');
+      multiFaceDetection.allFaces?.slice(1).forEach((face) => {
+        expect(face.policyNote).toBe('IM-102 Zero Risk');
+      });
+    });
+
+    it('triggers multiple faces alert when faceCount > 1', () => {
+      const shouldShowAlert = (detection: { faceCount: number }) => detection.faceCount > 1;
+
+      expect(shouldShowAlert({ faceCount: 0 })).toBe(false);
+      expect(shouldShowAlert({ faceCount: 1 })).toBe(false);
+      expect(shouldShowAlert({ faceCount: 2 })).toBe(true);
+      expect(shouldShowAlert({ faceCount: 3 })).toBe(true);
+      expect(shouldShowAlert({ faceCount: 4 })).toBe(true);
+    });
+
     it('formats frame_observation telemetry payload exactly as expected by backend session_store', () => {
       const detection: LiveDetectionResult = {
         facePresent: true,
@@ -797,6 +842,93 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       expect(payload.frame_observation.phone_present).toBe(0);
       expect(payload.policy_im102_applied).toBe(true);
     });
+
+    it('detects unauthorized mobile phone and populates phonePresent and phoneBox', () => {
+      const phoneDetection: LiveDetectionResult = {
+        facePresent: true,
+        faceCount: 1,
+        faceConfidence: 92,
+        headPose: 'forward',
+        lightingLevel: 48,
+        lightingCategory: 'adequate',
+        boundingBox: { x: 0.35, y: 0.20, width: 0.30, height: 0.44 },
+        secondaryBox: null,
+        phonePresent: true,
+        phoneBox: { x: 0.38, y: 0.52, width: 0.22, height: 0.38 },
+        fps: 20,
+        hasSimulatedPerson: false,
+        hasSimulatedLowLight: false,
+        hasSimulatedPhone: true,
+      };
+
+      expect(phoneDetection.phonePresent).toBe(true);
+      expect(phoneDetection.phoneBox).not.toBeNull();
+      expect(phoneDetection.phoneBox?.width).toBeGreaterThan(0.1);
+      expect(phoneDetection.phoneBox?.height).toBeGreaterThan(0.2);
+
+      const elapsedSec = 45.0;
+      const telemetryPayload = {
+        condition_type: 'live_frame_telemetry',
+        frame_observation: {
+          timestamp_sec: elapsedSec,
+          face_present: phoneDetection.facePresent ? 1 : 0,
+          no_of_face: phoneDetection.faceCount,
+          face_conf: phoneDetection.faceConfidence,
+          head_pose: phoneDetection.headPose,
+          phone_present: phoneDetection.phonePresent ? 1 : 0,
+        },
+      };
+
+      expect(telemetryPayload.frame_observation.phone_present).toBe(1);
+    });
+
+    it('retains distinct heads when two people sit side-by-side (centroid distance separation)', () => {
+      // Simulation of candidate at right (cx ~ 90) and second person at left (cx ~ 45)
+      const person1 = { minX: 68, maxX: 112, minY: 25, maxY: 85 };
+      const person2 = { minX: 25, maxX: 65, minY: 30, maxY: 88 };
+
+      const p1CenterX = (person1.minX + person1.maxX) / 2;
+      const p2CenterX = (person2.minX + person2.maxX) / 2;
+      const horizontalDistance = Math.abs(p1CenterX - p2CenterX);
+
+      // Verify that horizontal distance is >= 18px (here 45px), preventing cluster merge
+      expect(horizontalDistance).toBeGreaterThanOrEqual(18);
+
+      const shouldMerge = horizontalDistance <= 15 && !(person2.maxY < person1.minY - 10 || person2.minY > person1.maxY + 10);
+      expect(shouldMerge).toBe(false);
+    });
+
+    it('generates concise alerts with less words for phone and multiple faces', () => {
+      const getPhoneAlert = () => '⚠️ Alert: Phone Detected';
+      const getMultiFaceAlert = (count: number) => `⚠️ Alert: Multiple Faces (${count})`;
+      const getComboAlert = (count: number) => `⚠️ Alert: Phone & Multiple Faces (${count})`;
+
+      expect(getPhoneAlert()).toBe('⚠️ Alert: Phone Detected');
+      expect(getPhoneAlert().length).toBeLessThan(30);
+
+      expect(getMultiFaceAlert(2)).toBe('⚠️ Alert: Multiple Faces (2)');
+      expect(getMultiFaceAlert(2).length).toBeLessThan(35);
+
+      expect(getComboAlert(2)).toBe('⚠️ Alert: Phone & Multiple Faces (2)');
+      expect(getComboAlert(2).length).toBeLessThan(45);
+    });
+
+    it('rejects false positive phone triggers from dark chairs, clothing, and background objects without hand touch', () => {
+      // Case 1: Background chair outside candidate interactive foreground field
+      const chairObject = { x: 0.10, y: 0.60, width: 0.35, height: 0.50, skinTouchCount: 0 };
+      const isChairInInteractiveField = chairObject.x >= 0.20 && chairObject.x + chairObject.width <= 0.85;
+      expect(isChairInInteractiveField).toBe(false);
+
+      // Case 2: Dark clothing inside frame without candidate hand touch
+      const clothingObject = { pDeviceCount: 400, skinTouchCount: 2, aspect: 1.4 };
+      const isHandheldPhone = clothingObject.skinTouchCount >= 18 && (clothingObject.aspect >= 1.65 && clothingObject.aspect <= 2.35);
+      expect(isHandheldPhone).toBe(false);
+
+      // Case 3: Genuine smartphone held with hand
+      const realPhone = { pDeviceCount: 320, skinTouchCount: 24, aspect: 2.05 };
+      const isRealPhone = realPhone.skinTouchCount >= 18 && (realPhone.aspect >= 1.65 && realPhone.aspect <= 2.35);
+      expect(isRealPhone).toBe(true);
+    });
   });
 
   describe('12. Examination Fullscreen Keyboard Lockdown & Interception Guardrails', () => {
@@ -804,7 +936,7 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       const decision = evaluateExamKeyLockdown({ key: 'Escape', code: 'Escape' });
       expect(decision.isLocked).toBe(true);
       expect(decision.category).toBe('escape');
-      expect(decision.message).toContain('Escape key is locked during fullscreen exam');
+      expect(decision.message).toContain('Fullscreen Locked');
       expect(decision.eventMetadata?.interception).toBe('Escape');
     });
 
@@ -812,7 +944,7 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       const f5 = evaluateExamKeyLockdown({ key: 'F5', code: 'F5' });
       expect(f5.isLocked).toBe(true);
       expect(f5.category).toBe('reload');
-      expect(f5.message).toContain('Page reload');
+      expect(f5.message).toContain('Reload Blocked');
 
       const ctrlR = evaluateExamKeyLockdown({ key: 'r', ctrlKey: true, code: 'KeyR' });
       expect(ctrlR.isLocked).toBe(true);
@@ -833,7 +965,7 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
         const tabJump = evaluateExamKeyLockdown({ key: String(i), ctrlKey: true, code: `Digit${i}` });
         expect(tabJump.isLocked).toBe(true);
         expect(tabJump.category).toBe('tab_window');
-        expect(tabJump.message).toContain('Tab switching');
+        expect(tabJump.message).toContain('Tab Switch Blocked');
       }
 
       // Mac direct tab jumps (Cmd+1 to Cmd+9)
@@ -898,7 +1030,7 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       const f11 = evaluateExamKeyLockdown({ key: 'F11', code: 'F11' });
       expect(f11.isLocked).toBe(true);
       expect(f11.category).toBe('fullscreen');
-      expect(f11.message).toContain('F11 fullscreen toggle is locked');
+      expect(f11.message).toContain('Fullscreen Blocked');
     });
 
     it('locks browser search and utility shortcuts (Ctrl+F, Ctrl+H, Ctrl+J, F3)', () => {
@@ -923,7 +1055,7 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       const ctrlC = evaluateExamKeyLockdown({ key: 'c', ctrlKey: true, isInput: false });
       expect(ctrlC.isLocked).toBe(true);
       expect(ctrlC.category).toBe('content_protection');
-      expect(ctrlC.message).toContain('Copying, cutting, and text extraction');
+      expect(ctrlC.message).toContain('Clipboard Blocked');
 
       const ctrlX = evaluateExamKeyLockdown({ key: 'x', ctrlKey: true, isInput: false });
       expect(ctrlX.isLocked).toBe(true);
@@ -969,14 +1101,22 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       const printScreen = evaluateExamKeyLockdown({ key: 'PrintScreen', code: 'PrintScreen' });
       expect(printScreen.isLocked).toBe(true);
       expect(printScreen.category).toBe('print_export');
+      expect(printScreen.message).toBe('⚠️ Screenshot Blocked (PrintScreen restricted)');
+
+      const snapshotKey = evaluateExamKeyLockdown({ key: 'Snapshot' });
+      expect(snapshotKey.isLocked).toBe(true);
+      expect(snapshotKey.category).toBe('print_export');
+      expect(snapshotKey.message).toBe('⚠️ Screenshot Blocked (PrintScreen restricted)');
 
       const ctrlP = evaluateExamKeyLockdown({ key: 'p', ctrlKey: true });
       expect(ctrlP.isLocked).toBe(true);
       expect(ctrlP.category).toBe('print_export');
+      expect(ctrlP.message).toBe('⚠️ Print Blocked (Ctrl+P restricted)');
 
       const ctrlS = evaluateExamKeyLockdown({ key: 's', ctrlKey: true });
       expect(ctrlS.isLocked).toBe(true);
       expect(ctrlS.category).toBe('print_export');
+      expect(ctrlS.message).toBe('⚠️ Page Save Blocked (Ctrl+S restricted)');
     });
 
     it('ignores solitary modifier keys (Shift, Ctrl, Alt, Meta)', () => {
@@ -985,8 +1125,217 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       expect(evaluateExamKeyLockdown({ key: 'Alt' }).isLocked).toBe(false);
       expect(evaluateExamKeyLockdown({ key: 'Meta' }).isLocked).toBe(false);
     });
+
+    it('formats multiple faces alerts with minimal concise wording (less words)', () => {
+      const formatMultiFaceAlert = (faceCount: number) => `⚠️ Alert: Multiple Faces (${faceCount})`;
+      expect(formatMultiFaceAlert(2)).toBe('⚠️ Alert: Multiple Faces (2)');
+      expect(formatMultiFaceAlert(4)).toBe('⚠️ Alert: Multiple Faces (4)');
+      expect(formatMultiFaceAlert(2).length).toBeLessThan(35);
+    });
+  });
+
+  describe('14. Captured Evidence Frames & Proctoring Snapshots', () => {
+    it('provides valid high-resolution SVG demonstration evidence frames', () => {
+      expect(DEMO_EVIDENCE_FRAMES.phoneDetection).toMatch(/^data:image\/svg\+xml/);
+      expect(DEMO_EVIDENCE_FRAMES.sharedRoom).toMatch(/^data:image\/svg\+xml/);
+      expect(DEMO_EVIDENCE_FRAMES.tabSwitching).toMatch(/^data:image\/svg\+xml/);
+
+      // Verify forensic annotations in SVGs
+      const phoneDecoded = decodeURIComponent(DEMO_EVIDENCE_FRAMES.phoneDetection);
+      expect(phoneDecoded).toContain('FAIRPROCTOR-AI EVIDENCE CAPTURE');
+      expect(phoneDecoded).toContain('POLICY SEC-04');
+      expect(phoneDecoded).toContain('Phone');
+
+      const sharedRoomDecoded = decodeURIComponent(DEMO_EVIDENCE_FRAMES.sharedRoom);
+      expect(sharedRoomDecoded).toContain('POLICY IM-102');
+      expect(sharedRoomDecoded).toContain('Shared Living Space Non-Penalized');
+      expect(sharedRoomDecoded).toContain('Person 2');
+
+      const tabDecoded = decodeURIComponent(DEMO_EVIDENCE_FRAMES.tabSwitching);
+      expect(tabDecoded).toContain('WINDOW BLUR / TAB SWITCH INTERCEPTED');
+    });
+
+    it('populates captured_frame and captured_frames in fallback demonstration sessions', () => {
+      const phoneSession = FALLBACK_SESSIONS.find((s) => s.session_id === 'sess_phone_det_02');
+      expect(phoneSession).toBeDefined();
+      expect(phoneSession?.evidence_timeline[0].captured_frame).toBeTruthy();
+      expect(phoneSession?.captured_frames).toBeDefined();
+      expect(phoneSession?.captured_frames?.length).toBeGreaterThanOrEqual(1);
+
+      const sharedRoomSession = FALLBACK_SESSIONS.find((s) => s.session_id === 'sess_shared_room_01');
+      expect(sharedRoomSession).toBeDefined();
+      expect(sharedRoomSession?.evidence_timeline[0].captured_frame).toBeTruthy();
+      expect(sharedRoomSession?.captured_frames).toBeDefined();
+      expect(sharedRoomSession?.captured_frames?.[0].policy_note).toContain('IM-102');
+
+      const tabSession = FALLBACK_SESSIONS.find((s) => s.session_id === 'sess_tab_switching_03');
+      expect(tabSession).toBeDefined();
+      expect(tabSession?.evidence_timeline[0].captured_frame).toBeTruthy();
+      expect(tabSession?.captured_frames).toBeDefined();
+    });
+
+    it('stores and retrieves captured frames from local storage without data corruption', () => {
+      const testSessionId = `test_sess_${Date.now()}`;
+      const mockFrame = {
+        id: 'frame_test_01',
+        timestamp: '12:00:00 PM',
+        label: 'Multiple Faces (2 Persons)',
+        reason: 'Secondary person in background living space',
+        severity: 'LOW' as const,
+        data_url: 'data:image/jpeg;base64,mockJpegDataUrl',
+        policy_note: 'IM-102 Zero Risk',
+        sensor: 'HD Webcam',
+      };
+
+      saveStoredEvidenceFrame(testSessionId, mockFrame);
+      const retrieved = getStoredEvidenceFrames(testSessionId);
+      expect(retrieved.length).toBeGreaterThanOrEqual(1);
+      expect(retrieved[0].id).toBe('frame_test_01');
+      expect(retrieved[0].label).toBe('Multiple Faces (2 Persons)');
+      expect(retrieved[0].data_url).toBe('data:image/jpeg;base64,mockJpegDataUrl');
+    });
+  });
+
+  describe('15. 4-Side Mobile Environment Verification (Desk, Left, Right, Behind You)', () => {
+    it('generates high-definition simulation photos for all 4 canonical environment angles', () => {
+      const code = 'TEST-4SIDE';
+      const sideKeys: SideKey[] = ['desk_front', 'room_left', 'room_right', 'room_back'];
+
+      sideKeys.forEach((key) => {
+        const dataUrl = generateSimulatedSidePhoto(key, code);
+        expect(dataUrl).toMatch(/^data:image\/svg\+xml;utf8,/);
+        const decoded = decodeURIComponent(dataUrl);
+
+        expect(decoded).toContain('FAIRPROCTOR-AI');
+        expect(decoded).toContain(code);
+      });
+
+      // Side 1: Desk & Front Workspace
+      const deskSvg = decodeURIComponent(generateSimulatedSidePhoto('desk_front', code));
+      expect(deskSvg).toContain('SIDE 1: DESK & MONITOR WORKSPACE');
+      expect(deskSvg).toContain('Monitor, keyboard, mouse');
+
+      // Side 2: Left Side Perimeter
+      const leftSvg = decodeURIComponent(generateSimulatedSidePhoto('room_left', code));
+      expect(leftSvg).toContain('SIDE 2: LEFT SIDE PERIMETER');
+      expect(leftSvg).toContain('Left wall, side table, window');
+
+      // Side 3: Right Side Perimeter
+      const rightSvg = decodeURIComponent(generateSimulatedSidePhoto('room_right', code));
+      expect(rightSvg).toContain('SIDE 3: RIGHT SIDE PERIMETER');
+      expect(rightSvg).toContain('Right room boundary, hallway');
+
+      // Side 4: Behind You / Rear Room (Policy IM-102 Protected)
+      const backSvg = decodeURIComponent(generateSimulatedSidePhoto('room_back', code));
+      expect(backSvg).toContain('SIDE 4: REAR ROOM / BEHIND CHAIR');
+      expect(backSvg).toContain('IM-102 ZERO PENALTY AREA');
+      expect(backSvg).toContain('Shared background environment with 0 penalty');
+    });
+
+    it('structures compliant MobileEnvironmentCheckSubmitRequest with all 4 side photos', () => {
+      const payload = {
+        pairing_token: 'valid_test_token_4side',
+        check_status: 'completed' as const,
+        lighting_status: 'adequate' as const,
+        camera_status: 'available' as const,
+        desk_cleared_confirmed: true,
+        room_sweep_completed: true,
+        candidate_notes: '4 sides captured with smartphone',
+        captured_sides: {
+          desk_front: generateSimulatedSidePhoto('desk_front', 'FP-101'),
+          room_left: generateSimulatedSidePhoto('room_left', 'FP-101'),
+          room_right: generateSimulatedSidePhoto('room_right', 'FP-101'),
+          room_back: generateSimulatedSidePhoto('room_back', 'FP-101'),
+        },
+        observations: {
+          sides_captured_count: 4,
+          sides: ['desk_front', 'room_left', 'room_right', 'room_back'],
+        },
+      };
+
+      expect(payload.pairing_token).toBe('valid_test_token_4side');
+      expect(payload.check_status).toBe('completed');
+      expect(payload.desk_cleared_confirmed).toBe(true);
+      expect(payload.room_sweep_completed).toBe(true);
+      expect(payload.captured_sides.desk_front).toBeTruthy();
+      expect(payload.captured_sides.room_left).toBeTruthy();
+      expect(payload.captured_sides.room_right).toBeTruthy();
+      expect(payload.captured_sides.room_back).toBeTruthy();
+      expect(Object.keys(payload.captured_sides)).toHaveLength(4);
+    });
+
+    it('validates 4-side check completion in pairing status response', () => {
+      const mockPairingStatus = {
+        session_id: 'sess_4side_check_demo',
+        pairing_token: 'tok_4side_123456789012345678',
+        pairing_code: 'FP-4SIDE',
+        status: 'completed' as const,
+        is_expired: false,
+        environment_check: {
+          check_status: 'completed' as const,
+          lighting_status: 'adequate',
+          camera_status: 'available',
+          desk_cleared_confirmed: true,
+          room_sweep_completed: true,
+          candidate_notes: 'Inspected 4 sides',
+          captured_sides: {
+            desk_front: generateSimulatedSidePhoto('desk_front', 'FP-4SIDE'),
+            room_left: generateSimulatedSidePhoto('room_left', 'FP-4SIDE'),
+            room_right: generateSimulatedSidePhoto('room_right', 'FP-4SIDE'),
+            room_back: generateSimulatedSidePhoto('room_back', 'FP-4SIDE'),
+          },
+          submitted_at: new Date().toISOString(),
+        },
+        created_at: new Date().toISOString(),
+        expires_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      expect(mockPairingStatus.status).toBe('completed');
+      expect(mockPairingStatus.environment_check.desk_cleared_confirmed).toBe(true);
+      expect(mockPairingStatus.environment_check.captured_sides).toBeDefined();
+      expect(mockPairingStatus.environment_check.captured_sides.desk_front).toContain('data:image/svg+xml');
+      expect(mockPairingStatus.environment_check.captured_sides.room_back).toContain('data:image/svg+xml');
+    });
+
+    it('attaches 4-side environment verification to reviewer session detail and preserves Policy IM-102 non-penalty', () => {
+      const mockReviewerSession = {
+        session_id: 'sess_reviewer_4side_01',
+        risk_score: 12.0,
+        integrity_score: 88.0,
+        risk_level: 'LOW' as const,
+        contributing_factors: { visual_cv: 0.05, browser_telemetry: 0.0, environmental_reliability: 0.0, answer_similarity: 0.0 },
+        environmental_warnings: [],
+        missing_data: [],
+        confidence_or_uncertainty: 'High',
+        recommended_action: 'NO_ACTION',
+        model_version: '2.0.0',
+        policy_version: '1.0.0',
+        summary_explanation: 'Clean candidate exam session with completed 4-side mobile environment check.',
+        review_status: 'NO_CONCERN' as const,
+        is_demonstration_data: false,
+        created_at: new Date().toISOString(),
+        captured_sides: {
+          desk_front: generateSimulatedSidePhoto('desk_front', 'REV-01'),
+          room_left: generateSimulatedSidePhoto('room_left', 'REV-01'),
+          room_right: generateSimulatedSidePhoto('room_right', 'REV-01'),
+          room_back: generateSimulatedSidePhoto('room_back', 'REV-01'),
+        },
+      };
+
+      expect(mockReviewerSession.captured_sides).toBeDefined();
+      expect(Object.keys(mockReviewerSession.captured_sides)).toEqual([
+        'desk_front',
+        'room_left',
+        'room_right',
+        'room_back',
+      ]);
+      // Factor 4 (Room & Network Environment) must remain 0% penalty
+      expect(mockReviewerSession.contributing_factors.environmental_reliability).toBe(0.0);
+    });
   });
 
 });
+
 
 

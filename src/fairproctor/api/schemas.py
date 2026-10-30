@@ -72,6 +72,7 @@ class EvidenceItemSchema(BaseModel):
     severity: str
     contribution_score: float
     data_quality_limitations: Optional[str] = None
+    captured_frame: Optional[str] = None
 
 
 class ScoreSessionResponse(BaseModel):
@@ -158,6 +159,7 @@ class CandidateEventType(str, Enum):
     EXAM_TAB_HIDDEN = "EXAM_TAB_HIDDEN"
     EXAM_TAB_VISIBLE = "EXAM_TAB_VISIBLE"
     EXAM_WARNING_ACKNOWLEDGED = "EXAM_WARNING_ACKNOWLEDGED"
+    POLICY_VIOLATION_RECORDED = "POLICY_VIOLATION_RECORDED"
 
 
 class EventSource(str, Enum):
@@ -217,6 +219,7 @@ class MobileEnvironmentCheckSubmitRequest(BaseModel):
     desk_cleared_confirmed: bool = True
     room_sweep_completed: bool = True
     candidate_notes: Optional[str] = None
+    captured_sides: Optional[Dict[str, str]] = None  # 4-side photos: desk_front, room_left, room_right, room_back
     observations: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -294,6 +297,9 @@ class SessionDetailResponse(ScoreSessionResponse):
     is_live_candidate_session: bool = False
     candidate_status: str = "COMPLETED"
     events: List[CandidateEventRecord] = Field(default_factory=list)
+    captured_frames: List[Dict[str, Any]] = Field(default_factory=list)
+    environment_check: Optional[Dict[str, Any]] = None
+    captured_sides: Optional[Dict[str, str]] = None
     answers_count: int = 0
     created_at: str
 

@@ -13,6 +13,7 @@ import {
   ChevronRight,
   BarChart2,
   Camera,
+  Download,
 } from 'lucide-react';
 import { EvidenceItem } from '../types/proctoring';
 
@@ -340,14 +341,63 @@ export const EvidenceInspectorModal: React.FC<Props> = ({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left Column: Single Static Image Evidence Preview & Metadata (5 Cols) */}
             <div className="lg:col-span-5 space-y-3 flex flex-col">
-              {/* Single Large Static Evidence Image */}
-              <div className="h-[320px] sm:h-[340px] w-full rounded-2xl overflow-hidden border border-slate-200/90 shadow-2xs">
-                <CandidateImageEvidenceCutout
-                  timestampBadge={captureTime}
-                  detectionLabel={`${detectionName} Detected`}
-                  isDetected={true}
-                />
+              {/* Captured Evidence Frame Image */}
+              <div className="relative h-[320px] sm:h-[340px] w-full rounded-2xl overflow-hidden border border-slate-200/90 shadow-2xs group bg-slate-950 flex items-center justify-center">
+                {evidence.captured_frame ? (
+                  <div className="relative w-full h-full flex items-center justify-center bg-slate-950">
+                    <img
+                      src={evidence.captured_frame}
+                      alt="Captured Proctoring Evidence Frame"
+                      className="w-full h-full object-contain"
+                    />
+                    <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                      <a
+                        href={evidence.captured_frame}
+                        download={`fairproctor_evidence_${captureTime.replace(/\s+/g, '_')}.jpg`}
+                        className="px-2.5 py-1 rounded-lg bg-slate-900/85 hover:bg-slate-900 text-white text-[10px] font-semibold border border-slate-700/80 backdrop-blur-xs flex items-center gap-1 shadow-xs transition-colors"
+                        title="Download captured evidence frame"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Download className="w-3 h-3 text-teal-400" />
+                        <span>Download Frame</span>
+                      </a>
+                    </div>
+                    {/* Live Snapshot Badge */}
+                    <div className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded bg-slate-900/85 border border-slate-700/80 text-[10px] font-mono text-teal-400 backdrop-blur-xs flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
+                      <span>HD Frame Verified</span>
+                    </div>
+                  </div>
+                ) : (
+                  <CandidateImageEvidenceCutout
+                    timestampBadge={captureTime}
+                    detectionLabel={`${detectionName} Detected`}
+                    isDetected={true}
+                  />
+                )}
               </div>
+
+              {/* Detected Objects Bounding Box Tag Ribbon */}
+              {evidence.bounding_boxes && evidence.bounding_boxes.length > 0 && (
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-wrap gap-1.5 items-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                    Detected:
+                  </span>
+                  {evidence.bounding_boxes.map((b, bi) => (
+                    <span
+                      key={bi}
+                      className="px-2 py-0.5 rounded-md text-[10px] font-semibold border"
+                      style={{
+                        borderColor: b.color || '#10b981',
+                        color: b.color || '#10b981',
+                        backgroundColor: `${b.color || '#10b981'}15`,
+                      }}
+                    >
+                      {b.label}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Compact Image Evidence Information */}
               <div className="p-3 rounded-2xl bg-slate-50/80 border border-slate-200/80">

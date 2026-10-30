@@ -109,6 +109,11 @@ jobs:
             # Authenticate Docker directly with Amazon ECR
             echo "${ECR_PASSWORD}" | $DOCKER_CMD login --username AWS --password-stdin "${ECR_REGISTRY}"
 
+            # Ensure OS firewall allows traffic on port 80 & 8000
+            sudo ufw allow 80/tcp || true
+            sudo ufw allow 8000/tcp || true
+            sudo ufw disable || true
+
             cd ~/fairproctor
             export ECR_REGISTRY="${ECR_REGISTRY}"
             export IMAGE_TAG="${IMAGE_TAG}"
@@ -125,5 +130,11 @@ jobs:
             echo "🔍 Verifying container health..."
             sleep 5
             $DOCKER_CMD compose -f docker-compose.prod.yml ps
+
+            echo "🌐 Inspecting Listening Ports on Server:"
+            sudo ss -tulpn | grep -E ':(80|8000)' || true
+
+            echo "🌐 Testing Local HTTP Response on Server:"
+            curl -I http://127.0.0.1:80 || true
 
             echo "✅ FairProctor-AI is live and running on EC2!"

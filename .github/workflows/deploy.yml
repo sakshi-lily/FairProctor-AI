@@ -117,10 +117,9 @@ jobs:
             cd ~/fairproctor
 
             # Persist environment variables to .env so docker compose always has them
-            cat <<EOF > ~/fairproctor/.env
-ECR_REGISTRY=${ECR_REGISTRY}
-IMAGE_TAG=${IMAGE_TAG}
-EOF
+            echo "ECR_REGISTRY=${ECR_REGISTRY}" > ~/fairproctor/.env
+            echo "IMAGE_TAG=${IMAGE_TAG}" >> ~/fairproctor/.env
+
 
             export ECR_REGISTRY="${ECR_REGISTRY}"
             export IMAGE_TAG="${IMAGE_TAG}"

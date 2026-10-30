@@ -329,8 +329,23 @@ export const MobileEnvironmentCheckPage: React.FC<Props> = ({ initialToken, onDo
     try {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+
+      // Scale down image to optimal dimensions for fast, reliable mobile network transmission
+      const maxDim = 960;
+      let w = video.videoWidth || 640;
+      let h = video.videoHeight || 480;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      canvas.width = w;
+      canvas.height = h;
+
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Could not get canvas context');
 
@@ -352,7 +367,7 @@ export const MobileEnvironmentCheckPage: React.FC<Props> = ({ initialToken, onDo
       const timeStr = new Date().toLocaleTimeString();
       ctx.fillText(`Policy IM-102 Verified • ${timeStr}`, canvas.width - 220, canvas.height - 20);
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
       setActiveSidePreview(dataUrl);
     } catch (err) {
       console.warn('Live capture failed, using simulated fallback:', err);

@@ -33,12 +33,8 @@ import {
   Sliders,
   Camera,
   Users,
-  Compass,
-  CheckCircle2,
-  Eye,
   X,
 } from 'lucide-react';
-import { generateSimulatedSidePhoto, SideKey } from './MobileEnvironmentCheckPage';
 import { SYNTHETIC_EXAM_QUESTIONS } from './examQuestions';
 import {
   startCandidateSession,
@@ -57,12 +53,8 @@ import {
   CandidateEventType,
   CreatePairingResponse,
   PairingStatusResponse,
-  CapturedEvidenceFrame,
 } from '../types/proctoring';
-import {
-  captureEvidenceFrameFromVideo,
-  saveStoredEvidenceFrame,
-} from '../utils/evidenceFrameCapture';
+
 
 export interface DetectedFaceBox {
   id: number;
@@ -85,6 +77,7 @@ export interface LiveDetectionResult {
   lightingCategory: 'adequate' | 'low';
   boundingBox: { x: number; y: number; width: number; height: number } | null;
   secondaryBox: { x: number; y: number; width: number; height: number } | null;
+  allBoxes?: Array<{ x: number; y: number; width: number; height: number }>;
   allFaces?: DetectedFaceBox[];
   phonePresent?: boolean;
   phoneBox?: { x: number; y: number; width: number; height: number } | null;
@@ -92,6 +85,313 @@ export interface LiveDetectionResult {
   hasSimulatedPerson: boolean;
   hasSimulatedLowLight: boolean;
   hasSimulatedPhone?: boolean;
+}
+
+export function formatPersonCount(count: number): string {
+  if (count === 1) return '1 Person Observed';
+  return `${count} Persons Observed`;
+}
+
+export function applyTemporalSmoothing(history: number[], newCount: number, windowSize: number = 5): number {
+  history.push(newCount);
+  while (history.length > windowSize) {
+    history.shift();
+  }
+  if (history.length === 1) return newCount;
+
+  const frequency: Record<number, number> = {};
+  for (const count of history) {
+    frequency[count] = (frequency[count] || 0) + 1;
+  }
+
+  let bestCount = newCount;
+  let maxFreq = 0;
+  for (const keyStr of Object.keys(frequency)) {
+    const count = Number(keyStr);
+    const freq = frequency[count];
+    if (freq > maxFreq || (freq === maxFreq && count === newCount)) {
+      maxFreq = freq;
+      bestCount = count;
+    }
+  }
+
+  return bestCount;
+}
+
+export interface RawFaceDetection {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  pixelCount: number;
+  confidence: number;
+}
+
+export function detectFacesFromImageData(
+  imgData: ImageData | { data: Uint8ClampedArray | number[]; width: number; height: number },
+  minSkinDensity: number = 6
+): {
+  faceCount: number;
+  facePresent: boolean;
+  faces: RawFaceDetection[];
+  primaryBox: { x: number; y: number; width: number; height: number } | null;
+  secondaryBox: { x: number; y: number; width: number; height: number } | null;
+  headPose: 'forward' | 'left' | 'right' | 'down';
+  lightingLevel: number;
+  lightingCategory: 'adequate' | 'low';
+  faceConfidence: number;
+} {
+  const { data, width, height } = imgData;
+  const totalPixels = width * height;
+  if (totalPixels === 0) {
+    return {
+      faceCount: 0,
+      facePresent: false,
+      faces: [],
+      primaryBox: null,
+      secondaryBox: null,
+      headPose: 'forward',
+      lightingLevel: 0,
+      lightingCategory: 'low',
+      faceConfidence: 0,
+    };
+  }
+
+  // 1. Grid spatial quantization (cell size 8x8 pixels)
+  const cellW = 8;
+  const cellH = 8;
+  const cols = Math.floor(width / cellW);
+  const rows = Math.floor(height / cellH);
+  const gridSkin = new Uint16Array(cols * rows);
+  let totalLuminance = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    totalLuminance += lum;
+
+    // YCbCr chrominance calculation
+    const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+    const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+
+    // Inclusive skin chrominance boundary covering Fitzpatrick I - VI
+    const isSkin =
+      (cb >= 77 && cb <= 127 && cr >= 133 && cr <= 173) ||
+      (r > 70 && g > 35 && b > 20 && r > g && r > b && Math.abs(r - g) >= 12);
+
+    if (isSkin) {
+      const pIndex = i / 4;
+      const px = pIndex % width;
+      const py = Math.floor(pIndex / width);
+      const c = Math.min(cols - 1, Math.floor(px / cellW));
+      const rIdx = Math.min(rows - 1, Math.floor(py / cellH));
+      gridSkin[rIdx * cols + c]++;
+    }
+  }
+
+  const avgY = totalLuminance / totalPixels;
+  const calculatedLux = Math.round((avgY / 255) * 80);
+  const lightingCategory = calculatedLux >= 18 ? 'adequate' : 'low';
+
+  // 2. Connected Component Labeling on active grid cells
+  const visited = new Uint8Array(cols * rows);
+  const rawClusters: Array<{
+    minC: number;
+    maxC: number;
+    minR: number;
+    maxR: number;
+    skinPixels: number;
+    cellCount: number;
+  }> = [];
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      if (visited[idx] || gridSkin[idx] < minSkinDensity) continue;
+
+      // Start BFS
+      visited[idx] = 1;
+      const queue = [c, r];
+      let minC = c;
+      let maxC = c;
+      let minR = r;
+      let maxR = r;
+      let skinPixels = 0;
+      let cellCount = 0;
+
+      let qIdx = 0;
+      while (qIdx < queue.length) {
+        const curC = queue[qIdx++];
+        const curR = queue[qIdx++];
+        const curCellIdx = curR * cols + curC;
+        skinPixels += gridSkin[curCellIdx];
+        cellCount++;
+
+        if (curC < minC) minC = curC;
+        if (curC > maxC) maxC = curC;
+        if (curR < minR) minR = curR;
+        if (curR > maxR) maxR = curR;
+
+        // 8-way neighbors
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const nc = curC + dc;
+            const nr = curR + dr;
+            if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) {
+              const nIdx = nr * cols + nc;
+              if (!visited[nIdx] && gridSkin[nIdx] >= minSkinDensity) {
+                visited[nIdx] = 1;
+                queue.push(nc, nr);
+              }
+            }
+          }
+        }
+      }
+
+      if (skinPixels >= 32 && (maxC - minC >= 1 || maxR - minR >= 1)) {
+        rawClusters.push({ minC, maxC, minR, maxR, skinPixels, cellCount });
+      }
+    }
+  }
+
+  // 3. Convert valid clusters to face detections (and split wide conjoined faces if applicable)
+  const candidateFaces: RawFaceDetection[] = [];
+  for (const cluster of rawClusters) {
+    const pxX = cluster.minC * cellW;
+    const pxY = cluster.minR * cellH;
+    const pxW = (cluster.maxC - cluster.minC + 1) * cellW;
+    const pxH = (cluster.maxR - cluster.minR + 1) * cellH;
+
+    // Check if cluster is abnormally wide (multiple adjacent people)
+    if (pxW >= 48 && pxW > pxH * 1.85) {
+      const numPeople = Math.max(2, Math.min(4, Math.round(pxW / Math.max(20, pxH * 0.95))));
+      const segmentW = pxW / numPeople;
+      for (let s = 0; s < numPeople; s++) {
+        const subX = pxX + s * segmentW;
+        candidateFaces.push({
+          x: subX / width,
+          y: pxY / height,
+          width: segmentW / width,
+          height: pxH / height,
+          pixelCount: Math.round(cluster.skinPixels / numPeople),
+          confidence: Math.min(95, 75 + Math.round((cluster.skinPixels / (numPeople * 300)) * 20)),
+        });
+      }
+    } else {
+      candidateFaces.push({
+        x: pxX / width,
+        y: pxY / height,
+        width: pxW / width,
+        height: pxH / height,
+        pixelCount: cluster.skinPixels,
+        confidence: Math.min(98, 75 + Math.round((cluster.skinPixels / 400) * 22)),
+      });
+    }
+  }
+
+  // 4. Non-maximum suppression / overlapping face de-duplication
+  const faces: RawFaceDetection[] = [];
+  candidateFaces.sort((a, b) => b.width * b.height - a.width * a.height);
+
+  for (const face of candidateFaces) {
+    let duplicate = false;
+    for (const existing of faces) {
+      const x1 = Math.max(face.x, existing.x);
+      const y1 = Math.max(face.y, existing.y);
+      const x2 = Math.min(face.x + face.width, existing.x + existing.width);
+      const y2 = Math.min(face.y + face.height, existing.y + existing.height);
+
+      if (x2 > x1 && y2 > y1) {
+        const intersection = (x2 - x1) * (y2 - y1);
+        const areaFace = face.width * face.height;
+        const areaExisting = existing.width * existing.height;
+        const iou = intersection / (areaFace + areaExisting - intersection);
+        if (iou > 0.35 || intersection / Math.min(areaFace, areaExisting) > 0.6) {
+          duplicate = true;
+          break;
+        }
+      }
+    }
+    if (!duplicate) {
+      faces.push(face);
+    }
+  }
+
+  const faceCount = faces.length;
+  const facePresent = faceCount > 0;
+
+  // 5. Identify primary candidate face (most central and prominent)
+  let primaryBox: { x: number; y: number; width: number; height: number } | null = null;
+  let secondaryBox: { x: number; y: number; width: number; height: number } | null = null;
+  let headPose: 'forward' | 'left' | 'right' | 'down' = 'forward';
+  let faceConfidence = 0;
+
+  if (facePresent) {
+    let bestScore = -Infinity;
+    let bestIndex = 0;
+
+    for (let i = 0; i < faces.length; i++) {
+      const f = faces[i];
+      const cx = f.x + f.width / 2;
+      const cy = f.y + f.height / 2;
+      const distFromCenter = Math.hypot(cx - 0.5, cy - 0.5);
+      const score = (f.width * f.height) / (1 + distFromCenter * 2.5);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+
+    const primaryFace = faces[bestIndex];
+    primaryBox = {
+      x: primaryFace.x,
+      y: primaryFace.y,
+      width: primaryFace.width,
+      height: primaryFace.height,
+    };
+    faceConfidence = primaryFace.confidence;
+
+    const normCx = primaryFace.x + primaryFace.width / 2;
+    const normCy = primaryFace.y + primaryFace.height / 2;
+    if (normCx < 0.36) {
+      headPose = 'right';
+    } else if (normCx > 0.64) {
+      headPose = 'left';
+    } else if (normCy > 0.66) {
+      headPose = 'down';
+    } else {
+      headPose = 'forward';
+    }
+
+    // Secondary box (first non-primary face)
+    if (faces.length > 1) {
+      const secondaryFace = faces.find((_, idx) => idx !== bestIndex);
+      if (secondaryFace) {
+        secondaryBox = {
+          x: secondaryFace.x,
+          y: secondaryFace.y,
+          width: secondaryFace.width,
+          height: secondaryFace.height,
+        };
+      }
+    }
+  }
+
+  return {
+    faceCount,
+    facePresent,
+    faces,
+    primaryBox,
+    secondaryBox,
+    headPose,
+    lightingLevel: calculatedLux,
+    lightingCategory,
+    faceConfidence,
+  };
 }
 
 export interface CameraErrorInfo {
@@ -130,7 +430,7 @@ export function evaluateExamKeyLockdown(event: {
     return {
       isLocked: true,
       category: 'escape',
-      message: '⚠️ Fullscreen Locked (Escape restricted)',
+      message: '⚠️ Fullscreen Locked: Escape key is locked during fullscreen exam. Please use on-screen controls or "Submit Exam" to end your session.',
       eventMetadata: { interception: 'Escape', key: 'Escape' },
     };
   }
@@ -140,7 +440,7 @@ export function evaluateExamKeyLockdown(event: {
     return {
       isLocked: true,
       category: 'reload',
-      message: '⚠️ Reload Blocked (Locked during exam)',
+      message: '⚠️ Reload Blocked: Page reload (F5 / Ctrl+R) is disabled during the examination to preserve session state.',
       eventMetadata: { interception: 'PageReload', key },
     };
   }
@@ -168,7 +468,7 @@ export function evaluateExamKeyLockdown(event: {
     return {
       isLocked: true,
       category: 'tab_window',
-      message: '⚠️ Tab Switch Blocked (Locked during exam)',
+      message: '⚠️ Tab Switch Blocked: Tab switching and window shortcuts (Ctrl+Tab, Ctrl+1-9, Ctrl+T, Ctrl+W) are locked during full tab exam mode.',
       eventMetadata: { interception: 'TabSwitchControl', key, code },
     };
   }
@@ -178,10 +478,13 @@ export function evaluateExamKeyLockdown(event: {
     (altKey && (['Tab', 'F4', 'ArrowLeft', 'ArrowRight'].includes(key) || ['Tab', 'F4', 'ArrowLeft', 'ArrowRight'].includes(code))) ||
     (!isInput && (key === 'Backspace' || code === 'Backspace'))
   ) {
+    const isAltTab = altKey && (key === 'Tab' || code === 'Tab');
     return {
       isLocked: true,
       category: 'navigation',
-      message: '⚠️ Navigation Blocked (Alt+Tab restricted)',
+      message: isAltTab
+        ? 'Alt + Tab is disabled during the examination.'
+        : '⚠️ Navigation Blocked: Navigation and window switching shortcuts (Alt+Tab, Alt+F4, Backspace) are locked during the examination.',
       eventMetadata: { interception: 'NavigationControl', key, code },
     };
   }
@@ -191,7 +494,7 @@ export function evaluateExamKeyLockdown(event: {
     return {
       isLocked: true,
       category: 'fullscreen',
-      message: '⚠️ Fullscreen Blocked (F11 restricted)',
+      message: '⚠️ Fullscreen Blocked: F11 fullscreen toggle is locked. The examination maintains controlled fullscreen mode.',
       eventMetadata: { interception: 'F11Toggle', key },
     };
   }
@@ -202,25 +505,29 @@ export function evaluateExamKeyLockdown(event: {
     key === 'F3' ||
     code === 'F3'
   ) {
+    const isCtrlF = isCtrlOrMeta && lowerKey === 'f';
     return {
       isLocked: true,
       category: 'browser_tool',
-      message: '⚠️ Search & History Blocked',
+      message: isCtrlF
+        ? 'Ctrl + F is disabled during the examination.'
+        : 'Browser utility and search shortcuts (Ctrl+F, Ctrl+H, Ctrl+J) are locked during the examination.',
       eventMetadata: { interception: 'BrowserTool', key },
     };
   }
 
   // 8. Content Protection outside input elements (Ctrl+C, Ctrl+X, Ctrl+A, Ctrl+V)
   if (!isInput && isCtrlOrMeta && ['c', 'x', 'a', 'v'].includes(lowerKey)) {
+    const actionKey = lowerKey === 'c' ? 'Ctrl + C' : lowerKey === 'v' ? 'Ctrl + V' : lowerKey === 'x' ? 'Ctrl + X' : 'Ctrl + A';
     return {
       isLocked: true,
       category: 'content_protection',
-      message: '⚠️ Clipboard Blocked (Copy / Paste restricted)',
+      message: `⚠️ Clipboard Blocked: Copying, cutting, and text extraction (${actionKey}) from exam questions are locked.`,
       eventMetadata: { interception: 'ClipboardOperation', key },
     };
   }
 
-  // 9. Screen Capture (PrintScreen / Snapshot)
+  // 9. Screen Capture (PrintScreen)
   if (key === 'PrintScreen' || code === 'PrintScreen' || key === 'Snapshot') {
     return {
       isLocked: true,
@@ -258,7 +565,7 @@ export function evaluateExamKeyLockdown(event: {
     return {
       isLocked: true,
       category: 'devtools',
-      message: '⚠️ DevTools Blocked (F12 restricted)',
+      message: 'Developer tools (F12) are disabled during the examination.',
       eventMetadata: { interception: 'DevTools', key },
     };
   }
@@ -269,7 +576,7 @@ export function evaluateExamKeyLockdown(event: {
     return {
       isLocked: true,
       category: 'devtools',
-      message: '⚠️ View Source Blocked (Ctrl+U restricted)',
+      message: 'Ctrl + U is disabled during the examination.',
       eventMetadata: { interception: 'ViewSource', key },
     };
   }
@@ -293,13 +600,27 @@ type WizardScreen =
 interface Props {
   onReturnToReviewer: (sessionId?: string) => void;
   onSessionCreated?: (sessionId: string) => void;
+  onExamStateChange?: (isActiveExam: boolean) => void;
 }
 
-export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSessionCreated }) => {
+export const CandidatePortal: React.FC<Props> = ({
+  onReturnToReviewer,
+  onSessionCreated,
+  onExamStateChange,
+}) => {
   const [currentScreen, setCurrentScreen] = useState<WizardScreen>(() => {
     const saved = sessionStorage.getItem('fairproctor_current_screen');
     return (saved as WizardScreen) || 'welcome';
   });
+
+  // Keep parent (App header / Navbar) synchronized with active exam state
+  useEffect(() => {
+    const isActive = currentScreen === 'active_exam' || currentScreen === 'submission_confirm';
+    onExamStateChange?.(isActive);
+    return () => {
+      onExamStateChange?.(false);
+    };
+  }, [currentScreen, onExamStateChange]);
 
   // Pseudonymous candidate ID (randomized per attempt)
   const [candidateRef] = useState<string>(() => {
@@ -343,7 +664,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
   const [frontendOrigin, setFrontendOrigin] = useState<string>(() => window.location.origin);
   const [showOriginConfig, setShowOriginConfig] = useState<boolean>(false);
   const [isMobileCheckSkipped, setIsMobileCheckSkipped] = useState<boolean>(false);
-  const [inspectingSidePhoto, setInspectingSidePhoto] = useState<{ title: string; image: string; sideKey: string } | null>(null);
 
   // Desktop Media Streams & Permissions
   const [desktopMediaStream, setDesktopMediaStream] = useState<MediaStream | null>(null);
@@ -360,31 +680,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const cvAnimationIdRef = useRef<number | null>(null);
   const currentFpsRef = useRef<number>(20);
-  const nativeFaceDetectorRef = useRef<any>(null);
-  const isDetectingNativeRef = useRef<boolean>(false);
-  const latestNativeFacesRef = useRef<DetectedFaceBox[] | null>(null);
-  const lastNativeDetectTimeRef = useRef<number>(0);
-  const lastReactStateUpdateRef = useRef<number>(0);
-  const phoneConsecutiveFramesRef = useRef<number>(0);
-  const phoneAbsentFramesRef = useRef<number>(0);
-  const isPhoneConfirmedRef = useRef<boolean>(false);
-  const confirmedPhoneBoxRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const capturedEvidenceFramesRef = useRef<CapturedEvidenceFrame[]>([]);
-  const lastEvidenceCaptureTimeRef = useRef<{ [key: string]: number }>({});
-
-  // Initialize native Shape Detection API (FaceDetector) if supported in browser
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'FaceDetector' in window) {
-      try {
-        nativeFaceDetectorRef.current = new (window as any).FaceDetector({
-          maxDetectedFaces: 10,
-          fastMode: false,
-        });
-      } catch {
-        nativeFaceDetectorRef.current = null;
-      }
-    }
-  }, []);
+  const faceCountHistoryRef = useRef<number[]>([]);
 
   // Live Computer Vision Detection & Proctoring State
   const [liveDetection, setLiveDetection] = useState<LiveDetectionResult>({
@@ -396,13 +692,9 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     lightingCategory: 'adequate',
     boundingBox: null,
     secondaryBox: null,
-    allFaces: [],
-    phonePresent: false,
-    phoneBox: null,
     fps: 0,
     hasSimulatedPerson: false,
     hasSimulatedLowLight: false,
-    hasSimulatedPhone: false,
   });
   const liveDetectionRef = useRef<LiveDetectionResult>(liveDetection);
   useEffect(() => {
@@ -432,24 +724,32 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
   const [warningCount, setWarningCount] = useState<number>(0);
   const lastInterruptionTimeRef = useRef<number>(0);
   const isInitializingCameraRef = useRef<boolean>(false);
-  const hasLoggedPhoneAlertRef = useRef<boolean>(false);
 
   // Keyboard controls, Consent & Authorized Snapshot
   const [shortcutNotice, setShortcutNotice] = useState<string | null>(null);
+  const [shortcutNoticeTimestamp, setShortcutNoticeTimestamp] = useState<number>(0);
   const [hasProctoringConsent, setHasProctoringConsent] = useState<boolean>(true);
   const [authorizedSnapshot, setAuthorizedSnapshot] = useState<{ timestamp: string; dataUrl: string } | null>(null);
 
+  const triggerRestrictedNotice = (message: string) => {
+    setShortcutNotice(message);
+    setShortcutNoticeTimestamp(Date.now() + Math.random());
+  };
+
   // Simulated conditions state
   const [simulatedBackgroundPerson, setSimulatedBackgroundPerson] = useState<boolean>(false);
-  const [simulatedExtraPersonsCount, setSimulatedExtraPersonsCount] = useState<number>(0);
   const [simulatedPoorLighting, setSimulatedPoorLighting] = useState<boolean>(false);
   const [simulatedNetworkDegradation, setSimulatedNetworkDegradation] = useState<boolean>(false);
   const [simulatedCameraCut, setSimulatedCameraCut] = useState<boolean>(false);
-  const [simulatedPhonePresent, setSimulatedPhonePresent] = useState<boolean>(false);
 
   // Status feedback
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  // Testing / Development mode check via URL parameter
+  const isDevMode = typeof window !== 'undefined' && (
+    new URLSearchParams(window.location.search).get('dev') === 'true' ||
+    new URLSearchParams(window.location.search).get('testing') === 'true'
+  );
 
   // Ensure session exists on backend
   const ensureSessionStarted = async (): Promise<SessionDetail | null> => {
@@ -504,13 +804,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     if (!pairingData) return;
     try {
       await startMobileCheck(pairingData.pairing_token);
-      const code = pairingData.pairing_code || 'SIM';
-      const captured_sides = {
-        desk_front: generateSimulatedSidePhoto('desk_front', code),
-        room_left: generateSimulatedSidePhoto('room_left', code),
-        room_right: generateSimulatedSidePhoto('room_right', code),
-        room_back: generateSimulatedSidePhoto('room_back', code),
-      };
       const res = await submitMobileEnvironmentCheck({
         pairing_token: pairingData.pairing_token,
         check_status: 'completed',
@@ -518,13 +811,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         camera_status: 'available',
         desk_cleared_confirmed: true,
         room_sweep_completed: true,
-        candidate_notes: '4-side environment verification simulated via desktop trigger',
-        captured_sides,
-        observations: {
-          simulated: true,
-          sides_captured_count: 4,
-          sides: ['desk_front', 'room_left', 'room_right', 'room_back'],
-        },
+        candidate_notes: 'Verified via desktop simulation trigger for testing',
       });
       if (res.data) {
         setPairingStatus(res.data);
@@ -1129,6 +1416,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     if (!offCtx) return null;
 
     if (simulatedCameraCut) {
+      faceCountHistoryRef.current = [];
       return {
         facePresent: false,
         faceCount: 0,
@@ -1138,7 +1426,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         lightingCategory: 'low',
         boundingBox: null,
         secondaryBox: null,
-        allFaces: [],
+        allBoxes: [],
         fps: currentFpsRef.current || 20,
         hasSimulatedPerson: false,
         hasSimulatedLowLight: false,
@@ -1148,498 +1436,56 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     try {
       offCtx.drawImage(videoEl, 0, 0, 160, 120);
       const imgData = offCtx.getImageData(0, 0, 160, 120);
-      const data = imgData.data;
-      const totalPixels = 160 * 120;
 
-      let totalLuminance = 0;
+      // Multi-person dynamic face detection
+      const faceAnalysis = detectFacesFromImageData(imgData);
 
-      // Grid-based spatial clustering for detecting all multiple faces and unauthorized devices across 160x120 frame
-      const GRID_COLS = 16;
-      const GRID_ROWS = 12;
-      const CELL_W = 10;
-      const CELL_H = 10;
-      const cellCounts = new Int16Array(GRID_COLS * GRID_ROWS);
-      const cellMinX = new Int16Array(GRID_COLS * GRID_ROWS).fill(160);
-      const cellMaxX = new Int16Array(GRID_COLS * GRID_ROWS);
-      const cellMinY = new Int16Array(GRID_COLS * GRID_ROWS).fill(120);
-      const cellMaxY = new Int16Array(GRID_COLS * GRID_ROWS);
-
-      // Device detection accumulators: dark chassis / screen-off and bright illuminated screen
-      const cellDarkCounts = new Int16Array(GRID_COLS * GRID_ROWS);
-      const cellBrightCounts = new Int16Array(GRID_COLS * GRID_ROWS);
-      const cellDarkMinX = new Int16Array(GRID_COLS * GRID_ROWS).fill(160);
-      const cellDarkMaxX = new Int16Array(GRID_COLS * GRID_ROWS);
-      const cellDarkMinY = new Int16Array(GRID_COLS * GRID_ROWS).fill(120);
-      const cellDarkMaxY = new Int16Array(GRID_COLS * GRID_ROWS);
-
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // Standard ITU-R BT.601 Luminance
-        const y = 0.299 * r + 0.587 * g + 0.114 * b;
-        totalLuminance += y;
-
-        // YCbCr chrominance calculation
-        const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-        const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-
-        // Enhanced skin chrominance boundary: detects human skin tones while rejecting wooden walls, desks, paper
-        const isSkin =
-          (y >= 20 && cb >= 75 && cb <= 135 && cr >= 130 && cr <= 178) ||
-          (r > 55 && g > 30 && b > 20 && r > g && (r - g) >= 10 && (r - b) >= 12 && Math.abs(r - g) <= 90);
-
-        const pxIndex = i / 4;
-        const px = pxIndex % 160;
-        const py = Math.floor(pxIndex / 160);
-        const gx = Math.min(GRID_COLS - 1, Math.floor(px / CELL_W));
-        const gy = Math.min(GRID_ROWS - 1, Math.floor(py / CELL_H));
-        const cellIdx = gy * GRID_COLS + gx;
-
-        if (isSkin) {
-          cellCounts[cellIdx]++;
-          if (px < cellMinX[cellIdx]) cellMinX[cellIdx] = px;
-          if (px > cellMaxX[cellIdx]) cellMaxX[cellIdx] = px;
-          if (py < cellMinY[cellIdx]) cellMinY[cellIdx] = py;
-          if (py > cellMaxY[cellIdx]) cellMaxY[cellIdx] = py;
-        } else {
-          // Device pixel classification: only deep neutral black screen/chassis or high-illumination mobile display
-          // Exclude typical room clothing/wood/shadow by checking strict neutral dark glass or bright screen
-          const isPhoneDark = y < 50 && Math.abs(r - g) <= 8 && Math.abs(r - b) <= 10;
-          const isPhoneBright = y > 185 && Math.abs(r - b) <= 25;
-          if (isPhoneDark || isPhoneBright) {
-            if (isPhoneDark) cellDarkCounts[cellIdx]++;
-            else cellBrightCounts[cellIdx]++;
-            if (px < cellDarkMinX[cellIdx]) cellDarkMinX[cellIdx] = px;
-            if (px > cellDarkMaxX[cellIdx]) cellDarkMaxX[cellIdx] = px;
-            if (py < cellDarkMinY[cellIdx]) cellDarkMinY[cellIdx] = py;
-            if (py > cellDarkMaxY[cellIdx]) cellDarkMaxY[cellIdx] = py;
-          }
-        }
+      let rawCount = faceAnalysis.faceCount;
+      if (simulatedBackgroundPerson && rawCount < 2) {
+        rawCount = 2;
       }
 
-      const avgY = totalLuminance / totalPixels;
-      let calculatedLux = Math.round((avgY / 255) * 80);
+      // Apply rolling window temporal smoothing to eliminate single-frame jitter
+      const smoothedCount = applyTemporalSmoothing(faceCountHistoryRef.current, rawCount, 5);
+
+      let calculatedLux = faceAnalysis.lightingLevel;
       if (simulatedPoorLighting) {
         calculatedLux = 11;
       }
       const lightingCategory = calculatedLux >= 18 ? 'adequate' : 'low';
 
-      // Mobile Phone / Handheld Device Spatial Detection Pass
-      let rawPhoneCandidate: { x: number; y: number; width: number; height: number } | null = null;
-
-      // Scan ONLY in the candidate's personal foreground interactive field (center 60% of frame, below face)
-      const phoneVisited = new Uint8Array(GRID_COLS * GRID_ROWS);
-      for (let gy = 4; gy <= 10; gy++) {
-        for (let gx = 3; gx <= 12; gx++) {
-          const startIdx = gy * GRID_COLS + gx;
-          const deviceCount = cellDarkCounts[startIdx] + cellBrightCounts[startIdx];
-
-          // High density of device pixels and low skin pixels inside the cell
-          if (!phoneVisited[startIdx] && deviceCount >= 35 && cellCounts[startIdx] < 12) {
-            phoneVisited[startIdx] = 1;
-            let pDeviceCount = 0;
-            let pMinX = 160, pMaxX = 0, pMinY = 120, pMaxY = 0;
-            const pQueue: number[] = [startIdx];
-
-            while (pQueue.length > 0) {
-              const curr = pQueue.shift()!;
-              const cgx = curr % GRID_COLS;
-              const cgy = Math.floor(curr / GRID_COLS);
-              pDeviceCount += cellDarkCounts[curr] + cellBrightCounts[curr];
-
-              const cMinX = cellDarkMinX[curr];
-              const cMaxX = cellDarkMaxX[curr];
-              const cMinY = cellDarkMinY[curr];
-              const cMaxY = cellDarkMaxY[curr];
-              if (cMinX < pMinX) pMinX = cMinX;
-              if (cMaxX > pMaxX) pMaxX = cMaxX;
-              if (cMinY < pMinY) pMinY = cMinY;
-              if (cMaxY > pMaxY) pMaxY = cMaxY;
-
-              const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-              for (const [dx, dy] of dirs) {
-                const ngx = cgx + dx;
-                const ngy = cgy + dy;
-                if (ngx >= 3 && ngx <= 12 && ngy >= 4 && ngy <= 10) {
-                  const nIdx = ngy * GRID_COLS + ngx;
-                  const nCount = cellDarkCounts[nIdx] + cellBrightCounts[nIdx];
-                  if (!phoneVisited[nIdx] && nCount >= 30 && cellCounts[nIdx] < 15) {
-                    phoneVisited[nIdx] = 1;
-                    pQueue.push(nIdx);
-                  }
-                }
-              }
-            }
-
-            const pWidth = pMaxX - pMinX;
-            const pHeight = pMaxY - pMinY;
-            const pAspect = pHeight / Math.max(1, pWidth);
-
-            // Smartphone geometry: vertical portrait phone (1.65..2.35) or horizontal landscape phone (1.65..2.35)
-            // Width: 18..46px, Height: 36..85px
-            const isPortraitPhone = (pWidth >= 18 && pWidth <= 46 && pHeight >= 36 && pHeight <= 85 && pAspect >= 1.65 && pAspect <= 2.35);
-            const isLandscapePhone = (pHeight >= 18 && pHeight <= 46 && pWidth >= 36 && pWidth <= 85 && (1 / pAspect) >= 1.65 && (1 / pAspect) <= 2.35);
-
-            if (isPortraitPhone || isLandscapePhone) {
-              // MANDATORY: Hand touch verification
-              // Inspect perimeter cells directly beneath or adjacent to the rectangle for candidate fingers/hand skin pixels
-              let skinTouchCount = 0;
-              const minCellGx = Math.max(0, Math.floor(pMinX / CELL_W) - 1);
-              const maxCellGx = Math.min(GRID_COLS - 1, Math.floor(pMaxX / CELL_W) + 1);
-              const bottomCellGy = Math.min(GRID_ROWS - 1, Math.floor(pMaxY / CELL_H) + 1);
-              const topCellGy = Math.max(0, Math.floor(pMinY / CELL_H) - 1);
-
-              for (let sx = minCellGx; sx <= maxCellGx; sx++) {
-                // Bottom border cells (where hand supports the phone)
-                skinTouchCount += cellCounts[bottomCellGy * GRID_COLS + sx];
-              }
-              for (let sy = topCellGy; sy <= bottomCellGy; sy++) {
-                // Left and right border cells (where thumb and fingers grip the sides)
-                skinTouchCount += cellCounts[sy * GRID_COLS + minCellGx];
-                skinTouchCount += cellCounts[sy * GRID_COLS + maxCellGx];
-              }
-
-              // Must have significant device mass (>= 220 device pixels) and genuine hand touch support (>= 18 skin pixels)
-              if (pDeviceCount >= 220 && skinTouchCount >= 18) {
-                rawPhoneCandidate = {
-                  x: Math.max(0, pMinX / 160),
-                  y: Math.max(0, pMinY / 120),
-                  width: Math.min(1, pWidth / 160),
-                  height: Math.min(1, pHeight / 120),
-                };
-                break;
-              }
-            }
-          }
-        }
-        if (rawPhoneCandidate) break;
+      let secondaryBox = faceAnalysis.secondaryBox;
+      if (simulatedBackgroundPerson && !secondaryBox) {
+        secondaryBox = {
+          x: 0.70,
+          y: 0.14,
+          width: 0.22,
+          height: 0.32,
+        };
       }
 
-      // Temporal multi-frame hysteresis to completely eliminate false flicker
-      if (rawPhoneCandidate) {
-        phoneConsecutiveFramesRef.current++;
-        phoneAbsentFramesRef.current = 0;
-        // Require at least 6 consecutive frames (~400ms sustained presence) to verify phone
-        if (phoneConsecutiveFramesRef.current >= 6) {
-          isPhoneConfirmedRef.current = true;
-          confirmedPhoneBoxRef.current = rawPhoneCandidate;
-        }
-      } else {
-        phoneConsecutiveFramesRef.current = 0;
-        phoneAbsentFramesRef.current++;
-        // Clear only after 5 consecutive absent frames
-        if (phoneAbsentFramesRef.current >= 5) {
-          isPhoneConfirmedRef.current = false;
-          confirmedPhoneBoxRef.current = null;
-        }
-      }
+      const allBoxes = faceAnalysis.faces.map((f) => ({
+        x: f.x,
+        y: f.y,
+        width: f.width,
+        height: f.height,
+      }));
 
-      const phoneDetected = isPhoneConfirmedRef.current;
-      const phoneBox = confirmedPhoneBoxRef.current;
-
-      // Connected-Component Spatial Clustering for Multiple Face Detection
-      const visited = new Uint8Array(GRID_COLS * GRID_ROWS);
-      interface FaceCluster {
-        skinCount: number;
-        sumX: number;
-        sumY: number;
-        minX: number;
-        maxX: number;
-        minY: number;
-        maxY: number;
-      }
-      const rawClusters: FaceCluster[] = [];
-
-      // Sensitive threshold: 3 skin pixels per 10x10 cell detects distant background people
-      const CELL_THRESHOLD = 3;
-      const CLUSTER_MIN_PIXELS = 14;
-
-      for (let gy = 0; gy < GRID_ROWS; gy++) {
-        for (let gx = 0; gx < GRID_COLS; gx++) {
-          const startIdx = gy * GRID_COLS + gx;
-          if (!visited[startIdx] && cellCounts[startIdx] >= CELL_THRESHOLD) {
-            visited[startIdx] = 1;
-            const cluster: FaceCluster = {
-              skinCount: 0,
-              sumX: 0,
-              sumY: 0,
-              minX: 160,
-              maxX: 0,
-              minY: 120,
-              maxY: 0,
-            };
-
-            const queue: number[] = [startIdx];
-            while (queue.length > 0) {
-              const currIdx = queue.shift()!;
-              const cgx = currIdx % GRID_COLS;
-              const cgy = Math.floor(currIdx / GRID_COLS);
-
-              const count = cellCounts[currIdx];
-              cluster.skinCount += count;
-              const cMinX = cellMinX[currIdx];
-              const cMaxX = cellMaxX[currIdx];
-              const cMinY = cellMinY[currIdx];
-              const cMaxY = cellMaxY[currIdx];
-              if (cMinX < cluster.minX) cluster.minX = cMinX;
-              if (cMaxX > cluster.maxX) cluster.maxX = cMaxX;
-              if (cMinY < cluster.minY) cluster.minY = cMinY;
-              if (cMaxY > cluster.maxY) cluster.maxY = cMaxY;
-              cluster.sumX += ((cMinX + cMaxX) / 2) * count;
-              cluster.sumY += ((cMinY + cMaxY) / 2) * count;
-
-              // 4-neighbor expansion (Up, Down, Left, Right) prevents diagonal corner pixels from bridging two separate heads
-              const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-              for (const [dx, dy] of dirs) {
-                const ngx = cgx + dx;
-                const ngy = cgy + dy;
-                if (ngx >= 0 && ngx < GRID_COLS && ngy >= 0 && ngy < GRID_ROWS) {
-                  const nIdx = ngy * GRID_COLS + ngx;
-                  if (!visited[nIdx] && cellCounts[nIdx] >= CELL_THRESHOLD) {
-                    visited[nIdx] = 1;
-                    queue.push(nIdx);
-                  }
-                }
-              }
-            }
-
-            if (cluster.skinCount >= CLUSTER_MIN_PIXELS) {
-              rawClusters.push(cluster);
-            }
-          }
-        }
-      }
-
-      // Merge only vertically adjacent clusters belonging to the SAME person (e.g. face + chin/neck on same body axis)
-      // People sitting side-by-side have horizontal separation and must NEVER be merged!
-      const mergedClusters: FaceCluster[] = [];
-      for (const cl of rawClusters) {
-        let merged = false;
-        const clCenterX = (cl.minX + cl.maxX) / 2;
-        for (const m of mergedClusters) {
-          const mCenterX = (m.minX + m.maxX) / 2;
-          const horizontalDistance = Math.abs(clCenterX - mCenterX);
-
-          // Only merge if on the exact same vertical axis (same body) and adjacent in Y
-          const isSameVerticalPerson =
-            horizontalDistance <= 15 &&
-            !(cl.maxY < m.minY - 10 || cl.minY > m.maxY + 10);
-
-          if (isSameVerticalPerson) {
-            m.skinCount += cl.skinCount;
-            m.sumX += cl.sumX;
-            m.sumY += cl.sumY;
-            m.minX = Math.min(m.minX, cl.minX);
-            m.maxX = Math.max(m.maxX, cl.maxX);
-            m.minY = Math.min(m.minY, cl.minY);
-            m.maxY = Math.max(m.maxY, cl.maxY);
-            merged = true;
-            break;
-          }
-        }
-        if (!merged) {
-          mergedClusters.push({ ...cl });
-        }
-      }
-
-      // Wide-cluster multi-peak profile: if two people sitting close together formed a single wide cluster
-      const refinedClusters: FaceCluster[] = [];
-      for (const cl of mergedClusters) {
-        const width = cl.maxX - cl.minX;
-        if (width >= 42) {
-          const colCounts = new Int16Array(GRID_COLS);
-          for (let gy = 0; gy < GRID_ROWS; gy++) {
-            for (let gx = 0; gx < GRID_COLS; gx++) {
-              const cellX = gx * CELL_W;
-              if (cellX + CELL_W >= cl.minX && cellX <= cl.maxX) {
-                colCounts[gx] += cellCounts[gy * GRID_COLS + gx];
-              }
-            }
-          }
-          const minGx = Math.floor(cl.minX / CELL_W);
-          const maxGx = Math.min(GRID_COLS - 1, Math.floor(cl.maxX / CELL_W));
-          const midGx = Math.floor((minGx + maxGx) / 2);
-
-          let leftPeak = 0, leftGx = minGx;
-          for (let gx = minGx; gx <= midGx; gx++) {
-            if (colCounts[gx] > leftPeak) { leftPeak = colCounts[gx]; leftGx = gx; }
-          }
-          let rightPeak = 0, rightGx = maxGx;
-          for (let gx = midGx + 1; gx <= maxGx; gx++) {
-            if (colCounts[gx] > rightPeak) { rightPeak = colCounts[gx]; rightGx = gx; }
-          }
-
-          if (leftPeak >= 6 && rightPeak >= 6 && (rightGx - leftGx) >= 2) {
-            const splitX = Math.round((leftGx * CELL_W + rightGx * CELL_W) / 2) + 5;
-            refinedClusters.push({
-              skinCount: Math.round(cl.skinCount / 2),
-              sumX: (leftGx * CELL_W + 5) * (cl.skinCount / 2),
-              sumY: cl.sumY / 2,
-              minX: cl.minX,
-              maxX: splitX - 1,
-              minY: cl.minY,
-              maxY: cl.maxY,
-            });
-            refinedClusters.push({
-              skinCount: Math.round(cl.skinCount / 2),
-              sumX: (rightGx * CELL_W + 5) * (cl.skinCount / 2),
-              sumY: cl.sumY / 2,
-              minX: splitX + 1,
-              maxX: cl.maxX,
-              minY: cl.minY,
-              maxY: cl.maxY,
-            });
-            continue;
-          }
-        }
-        refinedClusters.push(cl);
-      }
-
-      // Build software face candidate boxes
-      refinedClusters.sort((a, b) => b.skinCount - a.skinCount);
-      const softwareFaces: DetectedFaceBox[] = [];
-
-      refinedClusters.forEach((cl, idx) => {
-        const boxW = Math.max(18, Math.min(80, (cl.maxX - cl.minX) * 1.25));
-        const boxH = Math.max(22, Math.min(90, (cl.maxY - cl.minY) * 1.35));
-        const aspect = boxW / boxH;
-        if (aspect < 0.35 || aspect > 2.6) return;
-
-        const boxX = Math.max(0, Math.min(160 - boxW, (cl.minX + cl.maxX) / 2 - boxW / 2));
-        const boxY = Math.max(0, Math.min(120 - boxH, (cl.minY + cl.maxY) / 2 - boxH / 2));
-
-        const baseConf = Math.min(96, Math.max(50, 75 + Math.round((cl.skinCount / 1000) * 20)));
-        const conf = simulatedPoorLighting ? Math.max(40, baseConf - 30) : baseConf;
-
-        softwareFaces.push({
-          id: idx + 1,
-          label: idx === 0 ? 'Candidate (Primary)' : `Person ${idx + 1} (Shared Room)`,
-          x: boxX / 160,
-          y: boxY / 120,
-          width: boxW / 160,
-          height: boxH / 120,
-          confidence: conf,
-          isPrimary: idx === 0,
-          policyNote: idx === 0 ? undefined : 'IM-102 Zero Risk',
-        });
-      });
-
-      let allFaces: DetectedFaceBox[] = [];
-      let headPose: 'forward' | 'left' | 'right' | 'down' = 'forward';
-      let faceConfidence = 0;
-
-      // DUAL-ENGINE ENSEMBLE: Combines Native Chromium ML FaceDetector with Software Spatial Clustering
-      if (latestNativeFacesRef.current && latestNativeFacesRef.current.length > 0) {
-        allFaces = latestNativeFacesRef.current.map((f, idx) => ({
-          ...f,
-          id: idx + 1,
-          label: idx === 0 ? 'Candidate (Primary)' : `Person ${idx + 1} (Shared Room)`,
-          policyNote: idx === 0 ? undefined : 'IM-102 Zero Risk',
-        }));
-
-        // Ensemble: check if software clustering detected any additional person that native detector missed
-        for (const swFace of softwareFaces) {
-          const swCx = swFace.x + swFace.width / 2;
-          const swCy = swFace.y + swFace.height / 2;
-          const alreadyFound = allFaces.some((nf) => {
-            const nfCx = nf.x + nf.width / 2;
-            const nfCy = nf.y + nf.height / 2;
-            return Math.abs(swCx - nfCx) < 0.18 && Math.abs(swCy - nfCy) < 0.22;
-          });
-
-          if (!alreadyFound) {
-            allFaces.push({
-              ...swFace,
-              id: allFaces.length + 1,
-              label: `Person ${allFaces.length + 1} (Shared Room)`,
-              isPrimary: false,
-              policyNote: 'IM-102 Zero Risk',
-            });
-          }
-        }
-      } else {
-        allFaces = softwareFaces;
-      }
-
-      // Primary face pose and confidence calculation
-      if (allFaces.length > 0) {
-        const primary = allFaces[0];
-        faceConfidence = simulatedPoorLighting ? 45 : primary.confidence;
-        const normCx = primary.x + primary.width / 2;
-        const normCy = primary.y + primary.height / 2;
-        if (normCx < 0.36) headPose = 'right';
-        else if (normCx > 0.64) headPose = 'left';
-        else if (normCy > 0.66) headPose = 'down';
-        else headPose = 'forward';
-      }
-
-      // Inject simulated multiple faces ONLY if simulation explicitly enabled AND real faces <= 1
-      if ((simulatedBackgroundPerson || simulatedExtraPersonsCount > 0) && allFaces.length <= 1) {
-        const extraCount = Math.max(1, simulatedExtraPersonsCount || 1);
-        const simulatedPositions = [
-          { x: 0.68, y: 0.22, width: 0.22, height: 0.32, conf: 88, label: 'Person 2 (Shared Room)' },
-          { x: 0.08, y: 0.24, width: 0.20, height: 0.30, conf: 82, label: 'Person 3 (Bystander)' },
-          { x: 0.42, y: 0.12, width: 0.18, height: 0.26, conf: 76, label: 'Person 4 (Background)' },
-        ];
-
-        // Ensure candidate face exists
-        if (allFaces.length === 0) {
-          allFaces.push({
-            id: 1,
-            label: 'Candidate (Primary)',
-            x: 0.32,
-            y: 0.20,
-            width: 0.30,
-            height: 0.44,
-            confidence: 92,
-            isPrimary: true,
-          });
-          faceConfidence = 92;
-        }
-
-        for (let i = 0; i < Math.min(extraCount, simulatedPositions.length); i++) {
-          const pos = simulatedPositions[i];
-          const newId = allFaces.length + 1;
-          allFaces.push({
-            id: newId,
-            label: pos.label,
-            x: pos.x,
-            y: pos.y,
-            width: pos.width,
-            height: pos.height,
-            confidence: pos.conf,
-            isPrimary: false,
-            policyNote: 'IM-102 Zero Risk',
-          });
-        }
-      }
-
-      const faceCount = allFaces.length;
-      const facePresent = faceCount > 0;
-      const primaryBox = allFaces[0] ? { x: allFaces[0].x, y: allFaces[0].y, width: allFaces[0].width, height: allFaces[0].height } : null;
-      const secondaryBox = allFaces[1] ? { x: allFaces[1].x, y: allFaces[1].y, width: allFaces[1].width, height: allFaces[1].height } : null;
-
-      const effectivePhonePresent = Boolean(phoneDetected || simulatedPhonePresent);
-      const effectivePhoneBox = phoneBox || (simulatedPhonePresent ? { x: 0.38, y: 0.52, width: 0.24, height: 0.38 } : null);
+      const facePresent = smoothedCount > 0 || faceAnalysis.facePresent;
 
       return {
         facePresent,
-        faceCount,
-        faceConfidence,
-        headPose,
+        faceCount: smoothedCount,
+        faceConfidence: faceAnalysis.faceConfidence,
+        headPose: faceAnalysis.headPose,
         lightingLevel: calculatedLux,
         lightingCategory,
-        boundingBox: primaryBox,
+        boundingBox: faceAnalysis.primaryBox,
         secondaryBox,
-        allFaces,
-        phonePresent: effectivePhonePresent,
-        phoneBox: effectivePhoneBox,
+        allBoxes,
         fps: currentFpsRef.current || 20,
-        hasSimulatedPerson: Boolean(simulatedBackgroundPerson || simulatedExtraPersonsCount > 0),
+        hasSimulatedPerson: simulatedBackgroundPerson,
         hasSimulatedLowLight: simulatedPoorLighting,
-        hasSimulatedPhone: simulatedPhonePresent,
       };
     } catch {
       return null;
@@ -1719,7 +1565,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       // Top Floating Badge
       const badgeY = Math.max(18, by - 6);
       ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-      const label = `Candidate (${Math.round(res.faceConfidence)}%)`;
+      const label = `Candidate (Verified • ${Math.round(res.faceConfidence)}%)`;
       const textWidth = ctx.measureText(label).width;
       const badgeW = textWidth + 14;
       const badgeX = Math.max(4, Math.min(width - badgeW - 4, bx + (bw - badgeW) / 2));
@@ -1737,7 +1583,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
 
       // Bottom Pose Pill
       const poseY = Math.min(height - 8, by + bh + 16);
-      const poseLabel = res.headPose === 'forward' ? 'Focused' : `Deflected (${res.headPose})`;
+      const poseLabel = `Pose: ${res.headPose.toUpperCase()} • ${res.headPose === 'forward' ? 'FOCUSED' : 'DEFLECTED'}`;
       const poseTextWidth = ctx.measureText(poseLabel).width;
       const poseW = poseTextWidth + 12;
       const poseX = Math.max(4, Math.min(width - poseW - 4, bx + (bw - poseW) / 2));
@@ -1751,138 +1597,70 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       ctx.fillText(poseLabel, poseX + 6, poseY - 2);
     }
 
-    // Render All Additional Detected Multiple Faces (Person 2, Person 3, Person 4, etc.)
-    const extraFaces = (res.allFaces && res.allFaces.length > 0)
-      ? res.allFaces.filter((f) => !f.isPrimary)
-      : (res.secondaryBox ? [{ id: 2, label: 'Person 2', ...res.secondaryBox, confidence: 85, isPrimary: false, policyNote: 'Zero Risk' }] : []);
+    // Secondary / Background Faces (Shared Room)
+    if (res.allBoxes && res.allBoxes.length > 1) {
+      res.allBoxes.slice(1).forEach((box, i) => {
+        const sx = box.x * width;
+        const sy = box.y * height;
+        const sw = box.width * width;
+        const sh = box.height * height;
 
-    const faceColorPalette = ['#f59e0b', '#f97316', '#ec4899', '#8b5cf6', '#06b6d4'];
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeRect(sx, sy, sw, sh);
+        ctx.setLineDash([]);
 
-    extraFaces.forEach((face, idx) => {
-      const color = faceColorPalette[idx % faceColorPalette.length];
-      const sx = face.x * width;
-      const sy = face.y * height;
-      const sw = face.width * width;
-      const sh = face.height * height;
+        const sLabel = `Person ${i + 2} (Shared Room) • IM-102 0 Risk`;
+        ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+        const sWidth = ctx.measureText(sLabel).width + 12;
+        const sX = Math.max(4, Math.min(width - sWidth - 4, sx));
+        const sY = Math.max(14, sy - 4);
 
-      ctx.strokeStyle = color;
+        ctx.fillStyle = 'rgba(120, 53, 15, 0.9)';
+        ctx.beginPath();
+        ctx.roundRect(sX, sY - 12, sWidth, 14, 3);
+        ctx.fill();
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#fef3c7';
+        ctx.fillText(sLabel, sX + 6, sY - 2);
+      });
+    } else if (res.faceCount >= 2 && res.secondaryBox) {
+      const sx = res.secondaryBox.x * width;
+      const sy = res.secondaryBox.y * height;
+      const sw = res.secondaryBox.width * width;
+      const sh = res.secondaryBox.height * height;
+
+      ctx.strokeStyle = '#f59e0b';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 3]);
       ctx.strokeRect(sx, sy, sw, sh);
       ctx.setLineDash([]);
 
-      const sLabel = `Person ${face.id} • Zero Risk`;
+      const sLabel = 'Person 2 (Shared Room) • IM-102 0 Risk';
       ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
       const sWidth = ctx.measureText(sLabel).width + 12;
       const sX = Math.max(4, Math.min(width - sWidth - 4, sx));
       const sY = Math.max(14, sy - 4);
 
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fillStyle = 'rgba(120, 53, 15, 0.9)';
       ctx.beginPath();
       ctx.roundRect(sX, sY - 12, sWidth, 14, 3);
       ctx.fill();
-      ctx.strokeStyle = color;
+      ctx.strokeStyle = '#f59e0b';
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      ctx.fillStyle = color;
+      ctx.fillStyle = '#fef3c7';
       ctx.fillText(sLabel, sX + 6, sY - 2);
-    });
-
-    // Render Unauthorized Handheld Mobile Phone Bounding Box
-    if (res.phonePresent && res.phoneBox) {
-      const px = res.phoneBox.x * width;
-      const py = res.phoneBox.y * height;
-      const pw = res.phoneBox.width * width;
-      const ph = res.phoneBox.height * height;
-
-      ctx.strokeStyle = '#f43f5e';
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(px, py, pw, ph);
-
-      // Corner accents for phone
-      const pCorner = Math.min(10, pw * 0.25);
-      ctx.strokeStyle = '#fda4af';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(px, py + pCorner);
-      ctx.lineTo(px, py);
-      ctx.lineTo(px + pCorner, py);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(px + pw - pCorner, py);
-      ctx.lineTo(px + pw, py);
-      ctx.lineTo(px + pw, py + pCorner);
-      ctx.stroke();
-
-      // Phone Label Pill
-      const pLabel = '📱 Phone (Restricted)';
-      ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
-      const pWidth = ctx.measureText(pLabel).width + 12;
-      const pX = Math.max(4, Math.min(width - pWidth - 4, px));
-      const pY = Math.max(14, py - 4);
-
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-      ctx.beginPath();
-      ctx.roundRect(pX, pY - 12, pWidth, 14, 3);
-      ctx.fill();
-      ctx.strokeStyle = '#f43f5e';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      ctx.fillStyle = '#f43f5e';
-      ctx.fillText(pLabel, pX + 6, pY - 2);
-    }
-
-    // Top HUD Warning Bar (Concise Alerts: Phone, Multiple Faces)
-    if (res.phonePresent && res.faceCount > 1) {
-      const alertLabel = `⚠️ Alert: Phone & Multiple Faces (${res.faceCount})`;
-      ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-      const aWidth = ctx.measureText(alertLabel).width + 18;
-      const aX = Math.max(4, (width - aWidth) / 2);
-      ctx.fillStyle = 'rgba(225, 29, 72, 0.95)';
-      ctx.beginPath();
-      ctx.roundRect(aX, 6, aWidth, 20, 5);
-      ctx.fill();
-      ctx.strokeStyle = '#fda4af';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(alertLabel, aX + 9, 20);
-    } else if (res.phonePresent) {
-      const alertLabel = `⚠️ Alert: Phone Detected`;
-      ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-      const aWidth = ctx.measureText(alertLabel).width + 18;
-      const aX = Math.max(4, (width - aWidth) / 2);
-      ctx.fillStyle = 'rgba(225, 29, 72, 0.95)';
-      ctx.beginPath();
-      ctx.roundRect(aX, 6, aWidth, 20, 5);
-      ctx.fill();
-      ctx.strokeStyle = '#fda4af';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(alertLabel, aX + 9, 20);
-    } else if (res.faceCount > 1) {
-      const alertLabel = `⚠️ Alert: Multiple Faces (${res.faceCount})`;
-      ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-      const aWidth = ctx.measureText(alertLabel).width + 18;
-      const aX = Math.max(4, (width - aWidth) / 2);
-      ctx.fillStyle = 'rgba(217, 119, 6, 0.95)';
-      ctx.beginPath();
-      ctx.roundRect(aX, 6, aWidth, 20, 5);
-      ctx.fill();
-      ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(alertLabel, aX + 9, 20);
     }
 
     // Low Light alert tag if ambient lighting < 18 lux
     if (res.lightingCategory === 'low') {
-      const luxLabel = `⚠️ Low Light (${res.lightingLevel} Lux)`;
+      const luxLabel = `Low Ambient Light (${res.lightingLevel} Lux) • IM-102 Safeguarded`;
       ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
       const luxW = ctx.measureText(luxLabel).width + 12;
       ctx.fillStyle = 'rgba(180, 83, 9, 0.9)';
@@ -1905,7 +1683,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       if (!active) return;
       const now = performance.now();
 
-      if (now - lastTick >= 75) {
+      if (now - lastTick >= 50) {
         lastTick = now;
         framesThisSec++;
         if (now - lastFpsUpdate >= 1000) {
@@ -1919,120 +1697,14 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
           : examVideoRef.current;
 
         if (activeVideo && isStreamActive(desktopMediaStreamRef.current)) {
-          // Native Chromium FaceDetector (throttled to 150ms to prevent ML inference pipeline backlog)
-          if (
-            nativeFaceDetectorRef.current &&
-            !isDetectingNativeRef.current &&
-            now - lastNativeDetectTimeRef.current >= 150 &&
-            activeVideo.readyState >= 2 &&
-            activeVideo.videoWidth > 0
-          ) {
-            isDetectingNativeRef.current = true;
-            lastNativeDetectTimeRef.current = now;
-            nativeFaceDetectorRef.current
-              .detect(activeVideo)
-              .then((faces: any[]) => {
-                const vw = activeVideo.videoWidth || 640;
-                const vh = activeVideo.videoHeight || 480;
-                if (faces && faces.length > 0) {
-                  // Sort descending by area: largest face is the foreground candidate
-                  faces.sort(
-                    (a, b) =>
-                      b.boundingBox.width * b.boundingBox.height -
-                      a.boundingBox.width * a.boundingBox.height
-                  );
-                  const detected: DetectedFaceBox[] = faces.map((f, idx) => ({
-                    id: idx + 1,
-                    label: idx === 0 ? 'Candidate' : `Person ${idx + 1}`,
-                    x: Math.max(0, f.boundingBox.x / vw),
-                    y: Math.max(0, f.boundingBox.y / vh),
-                    width: Math.min(1, f.boundingBox.width / vw),
-                    height: Math.min(1, f.boundingBox.height / vh),
-                    confidence: 96,
-                    isPrimary: idx === 0,
-                    policyNote: idx === 0 ? undefined : 'IM-102 Zero Risk',
-                  }));
-                  latestNativeFacesRef.current = detected;
-                } else {
-                  latestNativeFacesRef.current = [];
-                }
-              })
-              .catch(() => {
-                latestNativeFacesRef.current = null;
-              })
-              .finally(() => {
-                isDetectingNativeRef.current = false;
-              });
-          }
-
           const result = processVideoFrame(activeVideo);
           if (result) {
             result.fps = currentFpsRef.current || 20;
-
-            // Immediate vs throttled state dispatch:
-            // Alert conditions (multi-face count change, phone detection, face present toggle) update instantly
-            // Cosmetic telemetry (lux, FPS) is throttled to 350ms to eliminate React re-render lag
-            const prev = liveDetectionRef.current;
-            const alertStatusChanged =
-              prev.faceCount !== result.faceCount ||
-              prev.facePresent !== result.facePresent ||
-              prev.phonePresent !== result.phonePresent ||
-              prev.headPose !== result.headPose ||
-              prev.lightingCategory !== result.lightingCategory;
-
+            setLiveDetection(result);
             liveDetectionRef.current = result;
-
-            if (alertStatusChanged || now - lastReactStateUpdateRef.current >= 350) {
-              lastReactStateUpdateRef.current = now;
-              setLiveDetection(result);
-            }
 
             if (currentScreen === 'desktop_permissions' && previewOverlayRef.current) {
               drawOverlayHUD(previewOverlayRef.current, result);
-            } else if (currentScreen === 'active_exam' && examOverlayRef.current) {
-              drawOverlayHUD(examOverlayRef.current, result);
-
-              // Automated Evidence Frame Capture during Active Exam (throttled)
-              if (result.phonePresent && result.phoneBox) {
-                const boxes = [
-                  ...(result.boundingBox ? [{ label: 'Candidate (Primary)', ...result.boundingBox, color: '#10b981' }] : []),
-                  { label: '📱 Phone (Restricted)', ...result.phoneBox, color: '#f43f5e' },
-                ];
-                handleTriggerEvidenceFrameCapture({
-                  label: 'Unauthorized Mobile Device',
-                  reason: 'Mobile phone / handheld device detected in candidate visual field.',
-                  severity: 'HIGH',
-                  policyNote: 'Policy SEC-04: Unauthorized Handheld Electronic Device Detected',
-                  boundingBoxes: boxes,
-                  source: 'video_cv',
-                  debounceKey: 'phone_detected',
-                  debounceMs: 12000,
-                });
-              } else if (result.faceCount > 1) {
-                const boxes = result.allFaces && result.allFaces.length > 0
-                  ? result.allFaces.map((f) => ({
-                      label: f.label,
-                      x: f.x,
-                      y: f.y,
-                      width: f.width,
-                      height: f.height,
-                      color: f.isPrimary ? '#10b981' : '#f59e0b',
-                    }))
-                  : [
-                      ...(result.boundingBox ? [{ label: 'Candidate (Primary)', ...result.boundingBox, color: '#10b981' }] : []),
-                      ...(result.secondaryBox ? [{ label: 'Person 2 • IM-102 Zero Risk', ...result.secondaryBox, color: '#f59e0b' }] : []),
-                    ];
-                handleTriggerEvidenceFrameCapture({
-                  label: `Multiple Faces (${result.faceCount} Persons)`,
-                  reason: `Multiple faces detected in visual frame (${result.faceCount} persons). Environmental safeguard IM-102 applies zero risk penalty.`,
-                  severity: 'LOW',
-                  policyNote: 'Policy IM-102: Shared Living Space Non-Penalized (0 Penalty Points)',
-                  boundingBoxes: boxes,
-                  source: 'video_cv',
-                  debounceKey: 'multiple_faces',
-                  debounceMs: 12000,
-                });
-              }
             }
           }
         }
@@ -2051,7 +1723,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         cancelAnimationFrame(cvAnimationIdRef.current);
       }
     };
-  }, [currentScreen, desktopMediaStream, simulatedBackgroundPerson, simulatedExtraPersonsCount, simulatedPoorLighting, simulatedCameraCut, simulatedPhonePresent]);
+  }, [currentScreen, desktopMediaStream, simulatedBackgroundPerson, simulatedPoorLighting, simulatedCameraCut]);
 
   // Live Proctoring Telemetry Dispatch during Active Exam
   useEffect(() => {
@@ -2073,41 +1745,23 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
               no_of_face: det.faceCount,
               face_conf: Math.round(det.faceConfidence),
               head_pose: det.headPose,
-              phone_present: det.phonePresent ? 1 : 0,
+              phone_present: 0,
             },
             lighting_lux: det.lightingLevel,
             lighting_category: det.lightingCategory,
             detection_fps: det.fps || 20,
             policy_im102_applied: true,
           },
-          is_simulated: simulatedBackgroundPerson || simulatedPoorLighting || simulatedCameraCut || simulatedPhonePresent,
+          is_simulated: simulatedBackgroundPerson || simulatedPoorLighting || simulatedCameraCut,
           evidence_reliability: 'high_browser_telemetry',
         });
-
-        // Dedicated audit violation log when unauthorized device (phone) is detected
-        if (det.phonePresent && !hasLoggedPhoneAlertRef.current) {
-          hasLoggedPhoneAlertRef.current = true;
-          recordCandidateEvent(activeSession.session_id, {
-            event_type: 'POLICY_VIOLATION_RECORDED',
-            source: 'browser',
-            metadata: {
-              condition_type: 'unauthorized_device',
-              device_type: 'mobile_phone',
-              message: 'Mobile phone / handheld device detected in candidate visual frame.',
-            },
-            is_simulated: Boolean(simulatedPhonePresent),
-            evidence_reliability: 'high_browser_telemetry',
-          }).catch(() => {});
-        } else if (!det.phonePresent) {
-          hasLoggedPhoneAlertRef.current = false;
-        }
       } catch (e) {
         console.warn('Periodic proctoring telemetry dispatch deferred:', e);
       }
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [currentScreen, isExamRunning, activeSession, startTimeMs, simulatedBackgroundPerson, simulatedPoorLighting, simulatedCameraCut, simulatedPhonePresent]);
+  }, [currentScreen, isExamRunning, activeSession, startTimeMs, simulatedBackgroundPerson, simulatedPoorLighting, simulatedCameraCut]);
 
   // Auto-initialize camera if entering active_exam directly or on reload
   useEffect(() => {
@@ -2118,14 +1772,14 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     }
   }, [currentScreen]);
 
-  // Auto-dismiss keyboard shortcut notice after 2.5 seconds
+  // Auto-dismiss restricted keyboard / action toast after 3 seconds
   useEffect(() => {
     if (!shortcutNotice) return;
     const timer = setTimeout(() => {
       setShortcutNotice(null);
-    }, 2500);
+    }, 3000);
     return () => clearTimeout(timer);
-  }, [shortcutNotice]);
+  }, [shortcutNotice, shortcutNoticeTimestamp]);
 
   // Measure Real Network Latency to backend
   const handleTestNetwork = async () => {
@@ -2137,83 +1791,10 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     setIsMeasuringNetwork(false);
   };
 
-  // Automated Evidence Frame Capture Engine (with HUD overlays and cooldown debounce)
-  const handleTriggerEvidenceFrameCapture = (options: {
-    label: string;
-    reason: string;
-    severity: 'LOW' | 'MEDIUM' | 'HIGH';
-    policyNote?: string;
-    boundingBoxes?: Array<{
-      label: string;
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      color?: string;
-    }>;
-    source?: string;
-    debounceKey?: string;
-    debounceMs?: number;
-  }): CapturedEvidenceFrame | null => {
-    if (!activeSession) return null;
-    const now = performance.now();
-    const key = options.debounceKey || options.label;
-    const lastTime = lastEvidenceCaptureTimeRef.current[key] || 0;
-    const debounce = options.debounceMs ?? 12000;
-
-    if (now - lastTime < debounce) {
-      return null;
-    }
-    lastEvidenceCaptureTimeRef.current[key] = now;
-
-    const activeVideo = currentScreen === 'desktop_permissions'
-      ? videoPreviewRef.current
-      : examVideoRef.current;
-
-    if (!activeVideo || !isStreamActive(desktopMediaStreamRef.current)) {
-      return null;
-    }
-
-    const elapsed = startTimeMs ? (Date.now() - startTimeMs) / 1000 : 0;
-    const frame = captureEvidenceFrameFromVideo(activeVideo, {
-      sessionId: activeSession.session_id,
-      label: options.label,
-      reason: options.reason,
-      severity: options.severity,
-      policyNote: options.policyNote,
-      boundingBoxes: options.boundingBoxes,
-      source: options.source,
-      elapsedSeconds: elapsed,
-    });
-
-    capturedEvidenceFramesRef.current.push(frame);
-    saveStoredEvidenceFrame(activeSession.session_id, frame);
-
-    // Broadcast candidate event with captured_frame attached in metadata
-    recordCandidateEvent(activeSession.session_id, {
-      event_type: 'ENVIRONMENTAL_OBSERVATION',
-      source: (options.source as any) || 'browser',
-      metadata: {
-        condition_type: 'captured_evidence_frame',
-        label: options.label,
-        reason: options.reason,
-        severity: options.severity,
-        policy_note: options.policyNote,
-        captured_frame: frame.data_url,
-        bounding_boxes: options.boundingBoxes,
-        client_timestamp: new Date().toISOString(),
-      },
-      is_simulated: Boolean(simulatedBackgroundPerson || simulatedPhonePresent || simulatedPoorLighting),
-      evidence_reliability: 'high_browser_telemetry',
-    }).catch(() => {});
-
-    return frame;
-  };
-
   // Explicit Authorized Workflow: Capture Verification Snapshot under Candidate Consent
   const handleCaptureAuthorizedSnapshot = async () => {
     if (!examVideoRef.current || !desktopMediaStream || !isStreamActive(desktopMediaStream)) {
-      setShortcutNotice('Cannot capture verification snapshot: camera stream is not active.');
+      triggerRestrictedNotice('Cannot capture verification snapshot: camera stream is not active.');
       return;
     }
     try {
@@ -2231,21 +1812,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         });
         setStatusNotice('Authorized proctoring snapshot captured with candidate consent (stored locally per Policy IM-102).');
         if (activeSession) {
-          const frame: CapturedEvidenceFrame = {
-            id: `frame_snap_${Date.now()}`,
-            timestamp: new Date().toLocaleTimeString(),
-            label: 'Candidate Verification Snapshot',
-            reason: 'Authorized identity & room sweep verification snapshot with candidate consent.',
-            severity: 'LOW',
-            data_url: dataUrl,
-            policy_note: 'Policy IM-102: Candidate Consent Verification Snapshot (0 Penalty Points)',
-            source: 'candidate',
-            sensor: 'HD Webcam (Camera Channel 1)',
-            resolution: `${canvas.width} x ${canvas.height} px`,
-          };
-          capturedEvidenceFramesRef.current.push(frame);
-          saveStoredEvidenceFrame(activeSession.session_id, frame);
-
           await recordCandidateEvent(activeSession.session_id, {
             event_type: 'ENVIRONMENTAL_OBSERVATION',
             source: 'candidate',
@@ -2254,7 +1820,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
               timestamp: new Date().toISOString(),
               policy: 'IM-102',
               penalty_points: 0,
-              captured_frame: dataUrl,
             },
             is_simulated: false,
           });
@@ -2306,6 +1871,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       document.title = 'FairProctor-AI | Live Examination (Full Tab Locked)';
     } catch {}
 
+    setStatusNotice(null);
     setCurrentScreen('active_exam');
     setIsExamRunning(true);
     setSecondsRemaining(300);
@@ -2411,7 +1977,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         e.preventDefault();
         e.stopPropagation();
         if (decision.message) {
-          setShortcutNotice(decision.message);
+          triggerRestrictedNotice(decision.message);
         }
         if (activeSession && decision.eventMetadata) {
           recordCandidateEvent(activeSession.session_id, {
@@ -2449,60 +2015,27 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     // Right-click contextmenu prevention on active exam
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
-      setShortcutNotice('⚠️ Right-Click Disabled');
-    };
-
-    // Capture-phase PrintScreen interceptor (keydown & keyup on window & document)
-    const handlePrintScreenInterception = (e: KeyboardEvent) => {
-      if (e.key === 'PrintScreen' || e.code === 'PrintScreen' || e.key === 'Snapshot') {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText('');
-          }
-        } catch {}
-        setShortcutNotice('⚠️ Screenshot Blocked (PrintScreen restricted)');
-        handleTriggerEvidenceFrameCapture({
-          label: 'Screenshot Intercepted (PrintScreen)',
-          reason: 'Candidate triggered system screen capture shortcut (PrintScreen). Blocked by exam lockdown.',
-          severity: 'MEDIUM',
-          policyNote: 'Exam Lockdown Policy: Screen capture restricted during proctored exam',
+      triggerRestrictedNotice('Right-click context menu is disabled during the active examination.');
+      if (activeSession) {
+        recordCandidateEvent(activeSession.session_id, {
+          event_type: 'EXAM_WARNING_ACKNOWLEDGED',
           source: 'browser',
-          debounceKey: 'printscreen_intercepted',
-          debounceMs: 4000,
+          metadata: {
+            interception: 'ContextMenu',
+            client_timestamp: new Date().toISOString(),
+            policy_note: 'IM-102 non-penalizing audit record',
+          },
+          is_simulated: false,
         });
-        if (activeSession) {
-          recordCandidateEvent(activeSession.session_id, {
-            event_type: 'EXAM_WARNING_ACKNOWLEDGED',
-            source: 'browser',
-            metadata: {
-              interception: 'PrintScreen',
-              action: 'screenshot_prevented',
-              client_timestamp: new Date().toISOString(),
-              policy_note: 'IM-102 non-penalizing audit record',
-            },
-            is_simulated: false,
-          });
-        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('contextmenu', handleContextMenu);
-    window.addEventListener('keydown', handlePrintScreenInterception, { capture: true });
-    window.addEventListener('keyup', handlePrintScreenInterception, { capture: true });
-    document.addEventListener('keydown', handlePrintScreenInterception, { capture: true });
-    document.addEventListener('keyup', handlePrintScreenInterception, { capture: true });
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('contextmenu', handleContextMenu);
-      window.removeEventListener('keydown', handlePrintScreenInterception, { capture: true });
-      window.removeEventListener('keyup', handlePrintScreenInterception, { capture: true });
-      document.removeEventListener('keydown', handlePrintScreenInterception, { capture: true });
-      document.removeEventListener('keyup', handlePrintScreenInterception, { capture: true });
     };
   }, [currentScreen, activeSession, currentQuestionIndex]);
 
@@ -2537,15 +2070,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         setWarningType('fullscreen_exit');
         setWarningCount((prev) => prev + 1);
         setWarningModalOpen(true);
-        handleTriggerEvidenceFrameCapture({
-          label: 'Fullscreen Mode Exited',
-          reason: 'Candidate exited fullscreen examination lockdown.',
-          severity: 'MEDIUM',
-          policyNote: 'Exam Lockdown Policy: Fullscreen environment required for integrity',
-          source: 'browser',
-          debounceKey: 'fullscreen_exit_frame',
-          debounceMs: 5000,
-        });
         recordCandidateEvent(activeSession.session_id, {
           event_type: 'EXAM_FULLSCREEN_EXITED',
           source: 'browser',
@@ -2566,15 +2090,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
           setWarningType('tab_switch');
           setWarningCount((prev) => prev + 1);
           setWarningModalOpen(true);
-          handleTriggerEvidenceFrameCapture({
-            label: 'Tab Switch / Window Blur Intercepted',
-            reason: 'Candidate navigated away from examination tab. Full tab lockdown engaged.',
-            severity: 'MEDIUM',
-            policyNote: 'Standard Exam Security Policy: Continuous Browser Focus Enforced',
-            source: 'browser',
-            debounceKey: 'tab_switch_frame',
-            debounceMs: 5000,
-          });
           recordCandidateEvent(activeSession.session_id, {
             event_type: 'EXAM_TAB_HIDDEN',
             source: 'browser',
@@ -2605,15 +2120,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
         try {
           document.title = '🔒 [LOCKED] Tab / Window Unfocused - Return to Exam';
         } catch {}
-        handleTriggerEvidenceFrameCapture({
-          label: 'Window Blur Intercepted',
-          reason: 'Exam window lost focus. External window or application interaction prevented.',
-          severity: 'MEDIUM',
-          policyNote: 'Standard Exam Security Policy: Continuous Browser Focus Enforced',
-          source: 'browser',
-          debounceKey: 'tab_switch_frame',
-          debounceMs: 5000,
-        });
         recordCandidateEvent(activeSession.session_id, {
           event_type: 'EXAM_TAB_HIDDEN',
           source: 'browser',
@@ -2649,32 +2155,21 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     }
   };
 
-  // Simulation Triggers: Cycle through multiple faces (2, 3, 4, then reset)
+  // Simulation Triggers
   const handleTriggerSimulatedBackgroundPerson = async () => {
     if (!activeSession) return;
-    const nextCount = simulatedExtraPersonsCount >= 3 ? 0 : simulatedExtraPersonsCount + 1;
-    setSimulatedExtraPersonsCount(nextCount);
-    setSimulatedBackgroundPerson(nextCount > 0);
-    const totalFaces = nextCount + 1;
-
+    setSimulatedBackgroundPerson(true);
     await recordCandidateEvent(activeSession.session_id, {
       event_type: 'ENVIRONMENTAL_OBSERVATION',
       source: 'simulation',
       metadata: {
         condition_type: 'background_person',
-        observed_faces: totalFaces,
-        description: nextCount > 0
-          ? `Simulated multiple faces in camera frame (${totalFaces} faces). IM-102 zero-penalty rule applied.`
-          : 'Multiple faces simulation cleared. Solo candidate frame.',
+        description: 'Roommate walked through camera background. IM-102 zero-penalty rule applied.',
       },
-      is_simulated: nextCount > 0,
+      is_simulated: true,
       evidence_reliability: 'simulated_demonstration',
     });
-    setStatusNotice(
-      nextCount > 0
-        ? `Simulated: Multiple faces in camera view (${totalFaces} persons). 0 risk penalty assessed per Policy IM-102.`
-        : 'Multiple faces simulation cleared. 1 face active.'
-    );
+    setStatusNotice('Simulated: Background person in shared room (0 risk penalty assessed per Policy IM-102).');
   };
 
   const handleTriggerSimulatedLighting = async () => {
@@ -2785,7 +2280,11 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
   const currentQ = SYNTHETIC_EXAM_QUESTIONS[currentQuestionIndex];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5 animate-fade-in relative">
+    <div className={`mx-auto animate-fade-in relative ${
+      currentScreen === 'active_exam'
+        ? 'w-full max-w-7xl flex-1 flex flex-col min-h-0 h-full'
+        : 'max-w-4xl space-y-5'
+    }`}>
       {/* Fullscreen & Tab Switch Interruption Warning Modal (Restricted Mode) */}
       {warningModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
@@ -2799,17 +2298,18 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                 {warningType === 'tab_switch' ? '🔒 TAB SWITCH LOCKED' : '🔒 FULLSCREEN LOCKED'} #{warningCount}
               </span>
               <h3 className="text-base font-bold text-slate-900">
-                {warningType === 'tab_switch' ? '⚠️ Tab Switch Blocked' : '⚠️ Fullscreen Exited'}
+                {warningType === 'tab_switch' ? 'Tab Switching Locked' : 'Fullscreen Exited'}
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
                 {warningType === 'tab_switch'
-                  ? 'Tab switching is locked during the exam.'
-                  : 'Full tab examination mode is required.'}
+                  ? 'Tab switching is strictly locked during the examination. Your session has been frozen to protect exam integrity.'
+                  : 'Continuous full tab examination mode is required. Please re-enter full tab to unlock your exam interface.'}
               </p>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 text-left">
-              <strong className="text-slate-800">Policy IM-102:</strong> Interruptions do not fail you. Click below to resume exam.
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 text-left">
+              <strong className="text-slate-800 block mb-0.5">Policy IM-102 Safeguard:</strong>
+              Interruptions do NOT automatically fail you. Click below to re-lock the fullscreen tab and resume your examination.
             </div>
 
             <button
@@ -2977,10 +2477,10 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
             <div>
               <div className="flex items-center gap-2">
                 <Smartphone className="w-4 h-4 text-teal-600" />
-                <h2 className="text-base font-bold text-slate-900">4-Side Environment Verification</h2>
+                <h2 className="text-base font-bold text-slate-900">Mobile Room & Desk Scan</h2>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Scan QR code with smartphone to test your workspace by capturing photos of each of the 4 sides.
+                Scan QR code with smartphone camera for a 60-second sweep.
               </p>
             </div>
 
@@ -2999,12 +2499,12 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                 {pairingStatus?.status === 'completed' ? (
                   <>
                     <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>4 Sides Verified</span>
+                    <span>Check Done</span>
                   </>
                 ) : pairingStatus?.status === 'in_progress' ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 text-sky-600 animate-spin" />
-                    <span>Phone Capturing Sides</span>
+                    <span>Phone Connected</span>
                   </>
                 ) : pairingCountdown === 0 ? (
                   <>
@@ -3014,86 +2514,12 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                 ) : (
                   <>
                     <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                    <span>Awaiting Phone Scan</span>
+                    <span>Awaiting Scan</span>
                   </>
                 )}
               </span>
             </div>
           </div>
-
-          {/* When completed: Show 4-Side Verified Inspection Card */}
-          {pairingStatus?.status === 'completed' && (
-            <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 text-emerald-950 space-y-3 animate-fade-in">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-xs font-bold text-emerald-950">4-Side Environment Check Verified</h3>
-                    <p className="text-[11px] text-emerald-800 leading-snug">
-                      Desk surface, left perimeter, right perimeter, and rear room photos successfully inspected under Policy IM-102.
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  4 / 4 Angles Verified
-                </span>
-              </div>
-
-              {/* 4 Thumbnails Gallery Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-                {[
-                  { key: 'desk_front' as SideKey, title: '1. Front Desk & Screen', desc: 'Workspace & monitor' },
-                  { key: 'room_left' as SideKey, title: '2. Left Side', desc: 'Left perimeter' },
-                  { key: 'room_right' as SideKey, title: '3. Right Side', desc: 'Right perimeter' },
-                  { key: 'room_back' as SideKey, title: '4. Behind You', desc: 'IM-102 protected space' },
-                ].map((item) => {
-                  const capturedPhoto =
-                    pairingStatus.environment_check?.captured_sides?.[item.key] ||
-                    generateSimulatedSidePhoto(item.key, pairingStatus.pairing_code);
-                  return (
-                    <div
-                      key={item.key}
-                      onClick={() =>
-                        setInspectingSidePhoto({
-                          title: item.title,
-                          image: capturedPhoto,
-                          sideKey: item.key,
-                        })
-                      }
-                      className="p-2 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 shadow-xs cursor-pointer group transition-all"
-                    >
-                      <div className="aspect-[4/3] rounded-lg overflow-hidden bg-slate-950 relative border border-slate-200">
-                        <img
-                          src={capturedPhoto}
-                          alt={item.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                        <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <span className="text-[10px] font-bold text-white bg-slate-950/80 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <Eye className="w-3 h-3 text-teal-400" />
-                            Inspect
-                          </span>
-                        </div>
-                      </div>
-                      <div className="pt-1.5 text-center">
-                        <span className="text-[11px] font-bold text-slate-800 block truncate">
-                          {item.title}
-                        </span>
-                        <span className="text-[9px] text-slate-500 block truncate">
-                          {item.desc}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between text-[11px] text-emerald-900 pt-1 border-t border-emerald-200/60">
-                <span>Pairing Code: <strong className="font-mono">{pairingStatus.pairing_code}</strong></span>
-                <span className="text-emerald-700 font-semibold">Policy IM-102 Guarantee: Background space zero penalty</span>
-              </div>
-            </div>
-          )}
 
           {/* QR Display Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
@@ -3132,34 +2558,23 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
               </button>
             </div>
 
-            {/* Right Instructions Column: Guided 4 Sides Overview */}
+            {/* Right Instructions Column */}
             <div className="space-y-3">
-              <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-900 space-y-1.5">
-                <div className="font-semibold flex items-center gap-1.5 text-xs text-teal-950">
-                  <Compass className="w-3.5 h-3.5 text-teal-600" />
-                  <span>4 Environmental Sides Tested</span>
+              <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-900 space-y-1">
+                <div className="font-semibold flex items-center gap-1.5 text-xs">
+                  <Shield className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Privacy Guarantee (IM-102)</span>
                 </div>
-                <div className="grid grid-cols-2 gap-1.5 text-[11px] text-teal-800">
-                  <div className="p-1.5 rounded bg-white/70 border border-teal-200/60">
-                    <strong>1. Desk &amp; Front:</strong> Keyboard &amp; screen
-                  </div>
-                  <div className="p-1.5 rounded bg-white/70 border border-teal-200/60">
-                    <strong>2. Left Side:</strong> Left perimeter &amp; wall
-                  </div>
-                  <div className="p-1.5 rounded bg-white/70 border border-teal-200/60">
-                    <strong>3. Right Side:</strong> Right perimeter &amp; wall
-                  </div>
-                  <div className="p-1.5 rounded bg-white/70 border border-teal-200/60">
-                    <strong>4. Behind You:</strong> Rear room (IM-102 safe)
-                  </div>
-                </div>
+                <p className="leading-relaxed text-[11px] text-teal-800">
+                  Checks lighting and desk surface. Video is processed locally on phone with 0 cloud storage. Background people do not count as violations.
+                </p>
               </div>
 
               {/* Quick Link for Testing / Evaluation */}
               {pairingData && (
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
                   <span className="font-semibold text-slate-700 text-[11px] block">
-                    Same-Device Testing &amp; Simulation:
+                    Same-Device Testing:
                   </span>
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     <a
@@ -3168,7 +2583,7 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-[11px] text-teal-600 font-semibold hover:underline"
                     >
-                      <span>Open Mobile View</span>
+                      <span>Open in New Tab</span>
                       <ExternalLink className="w-3 h-3" />
                     </a>
                     <span className="text-slate-300">&bull;</span>
@@ -3176,8 +2591,8 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                       onClick={handleSimulateMobileCheck}
                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:underline"
                     >
-                      <Sparkles className="w-3 h-3 text-emerald-600" />
-                      <span>Simulate 4-Side Check</span>
+                      <CheckCircle className="w-3 h-3" />
+                      <span>Simulate Mobile Scan</span>
                     </button>
                   </div>
                 </div>
@@ -3287,38 +2702,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
             </div>
           )}
 
-          {/* Multiple Faces Detected Alert Banner in Screen 4 */}
-          {liveDetection.faceCount > 1 && (
-            <div className="p-3 rounded-xl bg-amber-50 border-2 border-amber-300 text-xs text-amber-950 flex items-center justify-between gap-3 shadow-xs animate-fade-in">
-              <div className="flex items-center gap-2.5">
-                <Users className="w-4 h-4 text-amber-600 flex-shrink-0 animate-pulse" />
-                <div>
-                  <span className="font-bold text-amber-950">⚠️ Alert: Multiple Faces Detected ({liveDetection.faceCount}) </span>
-                  <span className="text-amber-800 text-[11px]">— Zero risk penalty under Policy IM-102.</span>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 border border-amber-300 rounded text-amber-900 whitespace-nowrap">
-                Zero Risk
-              </span>
-            </div>
-          )}
-
-          {/* Phone Detected Alert Banner in Screen 4 */}
-          {liveDetection.phonePresent && (
-            <div className="p-3 rounded-xl bg-rose-50 border-2 border-rose-400 text-xs text-rose-950 flex items-center justify-between gap-3 shadow-xs animate-fade-in">
-              <div className="flex items-center gap-2.5">
-                <Smartphone className="w-4 h-4 text-rose-600 flex-shrink-0 animate-bounce" />
-                <div>
-                  <span className="font-bold text-rose-950">⚠️ Alert: Phone Detected </span>
-                  <span className="text-rose-800 text-[11px]">— Mobile phones and handheld devices are strictly prohibited during the exam.</span>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-rose-100 border border-rose-300 rounded text-rose-900 whitespace-nowrap">
-                Restricted Device
-              </span>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
             {/* Live Camera Preview */}
             <div className="relative aspect-video rounded-2xl bg-slate-900 overflow-hidden border border-slate-200 flex items-center justify-center min-h-[220px]">
@@ -3360,18 +2743,11 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                         }`}
                       />
                       <span className="font-semibold">
-                        {liveDetection.facePresent ? (
-                          liveDetection.faceCount === 1 ? (
-                            '1 Face Verified'
-                          ) : (
-                            <span className="text-amber-300 font-bold flex items-center gap-1">
-                              <Users className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                              <span>⚠️ {liveDetection.faceCount} Faces (Zero Risk)</span>
-                            </span>
-                          )
-                        ) : (
-                          'Detecting Face...'
-                        )}
+                        {liveDetection.facePresent
+                          ? `${liveDetection.faceCount === 1 ? '1 Face Verified' : `${liveDetection.faceCount} Faces`} (${Math.round(
+                              liveDetection.faceConfidence
+                            )}% conf)`
+                          : 'Detecting Face...'}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-slate-300 text-[10px]">
@@ -3394,15 +2770,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                   <p className="text-[11px] text-slate-500 leading-normal">
                     {cameraErrorInfo ? cameraErrorInfo.guidance : 'Camera access is required. Click "Allow Camera" or "Enable Both Devices" below.'}
                   </p>
-                  {window.location.protocol === 'http:' && (
-                    <a
-                      href={`https://${window.location.hostname}${window.location.pathname}${window.location.search}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs shadow-sm transition-colors mt-2"
-                    >
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Switch to Secure HTTPS</span>
-                    </a>
-                  )}
                 </div>
               )}
 
@@ -3833,457 +3200,346 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
 
       {/* SCREEN 8: ACTIVE EXAMINATION INTERFACE */}
       {currentScreen === 'active_exam' && (
-        <div className={`space-y-4 transition-all duration-300 ${warningModalOpen ? 'filter blur-md pointer-events-none select-none' : ''}`}>
-          {/* Multiple Faces Detected Real-Time Alert Banner in Screen 8 */}
-          {liveDetection.faceCount > 1 && (
-            <div className="p-3 rounded-xl bg-amber-50 border-2 border-amber-400 text-xs text-amber-950 flex items-center justify-between gap-3 shadow-xs animate-fade-in">
-              <div className="flex items-center gap-2.5">
-                <Users className="w-4 h-4 text-amber-600 flex-shrink-0 animate-pulse" />
-                <div>
-                  <span className="font-bold text-amber-950">⚠️ Alert: Multiple Faces ({liveDetection.faceCount}) </span>
-                  <span className="text-amber-800 text-[11px]">— Room tracking active. Zero risk penalty per Policy IM-102.</span>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 border border-amber-300 rounded text-amber-900 whitespace-nowrap">
-                Zero Risk
-              </span>
-            </div>
-          )}
-          {/* Phone Detected Real-Time Alert Banner in Screen 8 */}
-          {liveDetection.phonePresent && (
-            <div className="p-3 rounded-xl bg-rose-50 border-2 border-rose-400 text-xs text-rose-950 flex items-center justify-between gap-3 shadow-xs animate-fade-in">
-              <div className="flex items-center gap-2.5">
-                <Smartphone className="w-4 h-4 text-rose-600 flex-shrink-0 animate-bounce" />
-                <div>
-                  <span className="font-bold text-rose-950">⚠️ Alert: Phone Detected </span>
-                  <span className="text-rose-800 text-[11px]">— Handheld mobile devices are strictly restricted during active examination.</span>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-rose-100 border border-rose-300 rounded text-rose-900 whitespace-nowrap">
-                Restricted Device
-              </span>
-            </div>
-          )}
+        <div className={`relative flex-1 flex flex-col min-h-0 justify-between gap-2.5 sm:gap-3 transition-all duration-300 ${warningModalOpen ? 'filter blur-md pointer-events-none select-none' : ''}`}>
+          {/* Repeating Active Exam Watermark Background Layer */}
+          <div
+            className="fixed inset-0 pointer-events-none select-none z-0 exam-watermark-layer"
+            aria-hidden="true"
+          />
+
+          {/* Unusual Keyboard Activity / Restricted Action Toast Popup */}
           {shortcutNotice && (
-            <div className="p-3 rounded-xl bg-amber-50 border-2 border-amber-300 text-xs text-amber-900 flex items-center justify-between shadow-xs animate-fade-in">
-              <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                <span className="font-medium">{shortcutNotice}</span>
+            <aside
+              role="alert"
+              aria-live="assertive"
+              className="fixed top-5 left-1/2 -translate-x-1/2 z-50 max-w-md w-[calc(100%-2rem)] p-3 sm:p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-950 shadow-xl flex items-start justify-between gap-3 animate-slide-down"
+            >
+              <div className="flex items-start gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600 flex-shrink-0 mt-0.5">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div className="space-y-0.5 min-w-0">
+                  <h4 className="text-xs font-bold text-rose-900 leading-tight">
+                    Restricted Action Detected
+                  </h4>
+                  <p className="text-xs text-rose-800 leading-snug break-words">
+                    {shortcutNotice}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShortcutNotice(null)}
-                className="text-amber-600 hover:text-amber-800 font-bold ml-2 text-sm"
-                aria-label="Dismiss notice"
+                className="text-rose-400 hover:text-rose-700 p-1 rounded-md hover:bg-rose-100 transition-colors cursor-pointer flex-shrink-0"
+                aria-label="Dismiss warning"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
-            </div>
+            </aside>
           )}
 
           {/* Top Exam Header with Fullscreen Indicator */}
-          <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="px-3 py-1 rounded-xl bg-slate-100 font-mono text-sm font-bold text-slate-900 flex items-center gap-1.5 border border-slate-200">
-                <Clock className="w-3.5 h-3.5 text-teal-600" />
+          <div className="relative z-10 px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between gap-3 flex-shrink-0">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="px-3 py-1 rounded-lg border border-slate-200 bg-slate-50/50 flex items-center gap-2 font-mono text-xs sm:text-sm font-bold text-slate-800">
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-600" />
                 <span>{formatTimer(secondsRemaining)}</span>
               </div>
               <div className="text-xs">
-                <span className="font-semibold text-slate-800 block text-xs">
-                  Q{currentQuestionIndex + 1} of {SYNTHETIC_EXAM_QUESTIONS.length}
+                <span className="font-semibold text-slate-800 block text-xs sm:text-sm leading-tight">
+                  Question {currentQuestionIndex + 1} of {SYNTHETIC_EXAM_QUESTIONS.length}
                 </span>
-                <span className="text-slate-400 text-[11px]">{answeredCount} of {SYNTHETIC_EXAM_QUESTIONS.length} Done</span>
+                <span className="text-slate-400 text-[11px] sm:text-xs">
+                  {answeredCount} of {SYNTHETIC_EXAM_QUESTIONS.length} Answered
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>RESTRICTED MODE</span>
-              </span>
-
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                <Lock className="w-3 h-3 text-amber-600" />
-                <span>KEYBOARD &amp; TAB SWITCH LOCKED</span>
-              </span>
-
+            <div>
               <button
                 onClick={() => setCurrentScreen('submission_confirm')}
-                className="px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors shadow-xs"
+                className="px-4 py-1.5 sm:px-5 sm:py-2 rounded-xl bg-[#be123c] hover:bg-[#9f1239] text-white text-xs sm:text-sm font-semibold transition-colors shadow-xs cursor-pointer"
               >
                 Submit Exam
               </button>
             </div>
           </div>
 
-          {/* Status Feedback Notice */}
-          {statusNotice && (
-            <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-800 flex items-center justify-between animate-fade-in">
-              <span>{statusNotice}</span>
-              <button onClick={() => setStatusNotice(null)} className="text-slate-400 hover:text-slate-600 text-xs">
-                &times;
-              </button>
-            </div>
-          )}
+          {/* Main Layout: Examination Workspace + Proctor Telemetry */}
+          <div className="relative z-10 flex-1 flex flex-col lg:flex-row items-start gap-4 min-h-0">
+            {/* Left Side: Examination Workspace */}
+            <div className="flex-1 min-w-0 w-full p-3.5 sm:p-4 lg:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col justify-between min-h-0 select-none">
+              <div className="space-y-1.5 sm:space-y-2">
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 flex-shrink-0">
+                  <span className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">
+                    {currentQ.category}
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    Multiple Choice &middot; Single Select
+                  </span>
+                </div>
 
-          {/* Main Question + Video Preview Split */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Question Panel */}
-            <div className="lg:col-span-2 p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3.5 select-none">
-              <div className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">
-                {currentQ.category}
-              </div>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug pt-0.5 pb-0.5 flex-shrink-0">
+                  {currentQ.text}
+                </h3>
 
-              <h3 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">{currentQ.text}</h3>
-
-              {/* Options */}
-              <div className="space-y-1.5 pt-1">
-                {currentQ.options.map((opt) => {
-                  const isSelected = selectedAnswers[currentQ.id] === opt.key;
-                  return (
-                    <button
-                      key={opt.key}
-                      onClick={() => handleSelectOption(opt.key)}
-                      className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex items-center gap-2.5 ${
-                        isSelected
-                          ? 'border-teal-500 bg-teal-50 text-teal-900 font-semibold ring-1 ring-teal-500/30'
-                          : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-                      }`}
-                    >
-                      <span
-                        className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-xs ${
+                {/* Options */}
+                <div className="space-y-1.5 sm:space-y-2 pt-1 flex-shrink-0">
+                  {currentQ.options.map((opt) => {
+                    const isSelected = selectedAnswers[currentQ.id] === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        onClick={() => handleSelectOption(opt.key)}
+                        className={`w-full text-left px-3.5 py-2 sm:py-2.5 rounded-xl border text-xs sm:text-sm transition-all flex items-center gap-3 cursor-pointer ${
                           isSelected
-                            ? 'bg-teal-600 text-white'
-                            : 'bg-slate-100 text-slate-600'
+                            ? 'border-teal-500 bg-teal-50/60 text-slate-900 font-semibold ring-1 ring-teal-500/30 shadow-xs'
+                            : 'border-slate-200/90 hover:border-slate-300 text-slate-800 bg-white hover:bg-slate-50/50 shadow-xs'
                         }`}
                       >
-                        {opt.key}
-                      </span>
-                      <span className="flex-1 text-xs">{opt.label}</span>
-                    </button>
-                  );
-                })}
+                        <span
+                          className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 transition-colors ${
+                            isSelected
+                              ? 'bg-teal-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {opt.key}
+                        </span>
+                        <span className="flex-1 text-xs sm:text-sm font-medium">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Candidate Scratchpad (Permitted Normal Keyboard Input) */}
-              <div className="pt-2 border-t border-slate-100 space-y-1">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
-                  <label htmlFor={`scratchpad-${currentQ.id}`}>Candidate Scratchpad / Rough Work:</label>
-                  <span className="text-[10px] text-slate-400 font-normal">Normal typing fully supported</span>
+              {/* Bottom Section of Question Card: Scratchpad + Navigation */}
+              <div className="space-y-2 sm:space-y-2.5 pt-2 sm:pt-2.5 flex-shrink-0">
+                {/* Candidate Scratchpad / Rough Work */}
+                <div className="pt-2 border-t border-slate-100 space-y-1">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <label htmlFor={`scratchpad-${currentQ.id}`} className="text-[11px] sm:text-xs">
+                      Candidate Scratchpad / Rough Work:
+                    </label>
+                    <span className="text-[10px] sm:text-[11px] text-slate-400 font-normal">
+                      Normal typing fully supported
+                    </span>
+                  </div>
+                  <textarea
+                    id={`scratchpad-${currentQ.id}`}
+                    rows={2}
+                    value={candidateNotes[currentQ.id] || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCandidateNotes((prev) => ({ ...prev, [currentQ.id]: val }));
+                    }}
+                    placeholder="Type rough work notes, formulas, or answer justification here..."
+                    className="w-full px-3 py-1.5 sm:py-2 text-xs rounded-xl bg-slate-50/60 border border-slate-200/80 text-slate-800 placeholder:text-slate-400 select-text focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 resize-none h-12 sm:h-14"
+                  />
                 </div>
-                <textarea
-                  id={`scratchpad-${currentQ.id}`}
-                  rows={2}
-                  value={candidateNotes[currentQ.id] || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setCandidateNotes((prev) => ({ ...prev, [currentQ.id]: val }));
-                  }}
-                  placeholder="Type rough work notes, formulas, or answer justification here..."
-                  className="w-full p-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-800 select-text focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20"
-                />
-              </div>
 
-              {/* Question Navigation */}
-              <div className="pt-3 flex items-center justify-between border-t border-slate-100">
-                <button
-                  disabled={currentQuestionIndex === 0}
-                  onClick={() => setCurrentQuestionIndex((prev) => prev - 1)}
-                  className="px-3 py-1 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 disabled:opacity-40 hover:bg-slate-50"
-                >
-                  Prev
-                </button>
-                <div className="flex gap-1">
-                  {SYNTHETIC_EXAM_QUESTIONS.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setCurrentQuestionIndex(i)}
-                      className={`w-6 h-6 rounded-md text-xs font-semibold ${
-                        currentQuestionIndex === i
-                          ? 'bg-teal-600 text-white'
-                          : selectedAnswers[i + 1]
-                          ? 'bg-slate-100 text-slate-800 border border-slate-200'
-                          : 'border border-slate-200 text-slate-400'
-                      }`}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
+                {/* Question Navigation */}
+                <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+                  <button
+                    disabled={currentQuestionIndex === 0}
+                    onClick={() => setCurrentQuestionIndex((prev) => prev - 1)}
+                    className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Prev
+                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {SYNTHETIC_EXAM_QUESTIONS.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCurrentQuestionIndex(i)}
+                        className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center ${
+                          currentQuestionIndex === i
+                            ? 'bg-teal-600 text-white shadow-xs'
+                            : selectedAnswers[i + 1]
+                            ? 'bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100'
+                            : 'border border-slate-200 text-slate-500 hover:bg-slate-50'
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    disabled={currentQuestionIndex === SYNTHETIC_EXAM_QUESTIONS.length - 1}
+                    onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}
+                    className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Next
+                  </button>
                 </div>
-                <button
-                  disabled={currentQuestionIndex === SYNTHETIC_EXAM_QUESTIONS.length - 1}
-                  onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}
-                  className="px-3 py-1 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 disabled:opacity-40 hover:bg-slate-50"
-                >
-                  Next
-                </button>
               </div>
             </div>
 
-            {/* Candidate Desktop Video Preview & Demo Controls Drawer */}
-            <div className="space-y-3">
-              <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-800 block">
+            {/* Right Side: Proctor Telemetry Panel (Single Compact Card) */}
+            <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 rounded-2xl bg-white border border-slate-200/80 shadow-xs p-3.5 sm:p-4 flex flex-col gap-3 h-fit">
+              {/* 1. Card Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-bold text-slate-800 block">
                     Proctor Telemetry
                   </span>
+                </div>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : isRequestingMedia
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  {cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut
+                    ? 'Live Stream'
+                    : isRequestingMedia
+                    ? 'Connecting'
+                    : 'Offline'}
+                </span>
+              </div>
+
+              {/* 2. Camera Preview (Directly below header) */}
+              <div
+                className={`relative aspect-4/3 w-full rounded-xl bg-slate-900 overflow-hidden border transition-all duration-300 flex items-center justify-center ${
+                  liveDetection.faceCount > 1
+                    ? 'border-amber-400 ring-2 ring-amber-400/60 shadow-xs'
+                    : liveDetection.faceCount === 1
+                    ? 'border-emerald-500/40'
+                    : 'border-slate-200'
+                }`}
+              >
+                {/* Small overlay inside Camera Preview for detected persons count */}
+                {liveDetection.faceCount > 1 ? (
+                  <div className="absolute top-2.5 left-2.5 z-10 px-2 py-0.5 rounded-md bg-amber-500/95 text-white text-[10px] font-semibold backdrop-blur-xs flex items-center gap-1 shadow-xs animate-fade-in">
+                    <Users className="w-3 h-3" />
+                    <span>{formatPersonCount(liveDetection.faceCount)}</span>
+                  </div>
+                ) : liveDetection.faceCount === 1 ? (
+                  <div className="absolute top-2.5 left-2.5 z-10 px-2 py-0.5 rounded-md bg-emerald-600/90 text-white text-[10px] font-semibold backdrop-blur-xs flex items-center gap-1 shadow-xs animate-fade-in">
+                    <CheckCircle className="w-3 h-3" />
+                    <span>{formatPersonCount(1)}</span>
+                  </div>
+                ) : (
+                  <div className="absolute top-2.5 left-2.5 z-10 px-2 py-0.5 rounded-md bg-slate-700/80 text-slate-200 text-[10px] font-semibold backdrop-blur-xs flex items-center gap-1 shadow-xs animate-fade-in">
+                    <AlertCircle className="w-3 h-3 text-slate-300" />
+                    <span>{formatPersonCount(0)}</span>
+                  </div>
+                )}
+                {isRequestingMedia ? (
+                  <div className="text-center p-3 space-y-1.5 text-white">
+                    <RefreshCw className="w-5 h-5 mx-auto text-teal-400 animate-spin" />
+                    <span className="text-xs font-semibold block">Starting Camera...</span>
+                    <span className="text-[10px] text-slate-400">Connecting to webcam device</span>
+                  </div>
+                ) : cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut ? (
+                  <video
+                    ref={handleExamVideoMount}
+                    autoPlay
+                    playsInline
+                    muted
+                    onLoadedMetadata={(e) => {
+                      const v = e.currentTarget;
+                      v.muted = true;
+                      v.play().catch(() => {});
+                    }}
+                    onCanPlay={(e) => {
+                      const v = e.currentTarget;
+                      v.play().catch(() => {});
+                    }}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center p-3 text-xs text-slate-400 space-y-2 max-w-[210px]">
+                    <VideoOff className="w-5 h-5 mx-auto text-amber-400" />
+                    <div>
+                      <span className="text-xs font-semibold text-slate-200 block">
+                        {cameraErrorInfo ? cameraErrorInfo.message : (simulatedCameraCut ? 'Camera Interrupted' : 'Camera Inactive')}
+                      </span>
+                      <span className="text-[10px] text-slate-400 leading-tight block mt-0.5">
+                        {cameraErrorInfo ? cameraErrorInfo.guidance : 'Camera is not currently capturing frames.'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => initializeCamera(true)}
+                      disabled={isRequestingMedia}
+                      className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold text-[11px] shadow-xs inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Retry Camera</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Monitoring Metrics (Immediately below camera preview) */}
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Candidate Focus:</span>
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut
+                      liveDetection.facePresent && liveDetection.headPose === 'forward'
                         ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                        : isRequestingMedia
+                        : liveDetection.facePresent
                         ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        : 'bg-rose-50 text-rose-800 border border-rose-200'
                     }`}
                   >
-                    {cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut
-                      ? 'Live Stream'
-                      : isRequestingMedia
-                      ? 'Connecting'
-                      : 'Offline'}
+                    {liveDetection.facePresent
+                      ? (liveDetection.headPose === 'forward'
+                        ? 'Focused (Forward)'
+                        : `Deflected (${liveDetection.headPose})`)
+                      : 'No Face Detected'}
                   </span>
                 </div>
 
-                <div className="relative aspect-video rounded-xl bg-slate-900 overflow-hidden border border-slate-200 flex items-center justify-center">
-                  {isRequestingMedia ? (
-                    <div className="text-center p-3 space-y-1.5 text-white">
-                      <RefreshCw className="w-5 h-5 mx-auto text-teal-400 animate-spin" />
-                      <span className="text-xs font-semibold block">Starting Camera...</span>
-                      <span className="text-[10px] text-slate-400">Connecting to webcam device</span>
-                    </div>
-                  ) : cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut ? (
-                    <>
-                      <video
-                        ref={handleExamVideoMount}
-                        autoPlay
-                        playsInline
-                        muted
-                        onLoadedMetadata={(e) => {
-                          const v = e.currentTarget;
-                          v.muted = true;
-                          v.play().catch(() => {});
-                        }}
-                        onCanPlay={(e) => {
-                          const v = e.currentTarget;
-                          v.play().catch(() => {});
-                        }}
-                        className="w-full h-full object-cover"
-                      />
-                      <canvas
-                        ref={examOverlayRef}
-                        className="absolute inset-0 w-full h-full pointer-events-none"
-                      />
-                    </>
-                  ) : (
-                    <div className="text-center p-3 text-xs text-slate-400 space-y-2 max-w-[210px]">
-                      <VideoOff className="w-5 h-5 mx-auto text-amber-400" />
-                      <div>
-                        <span className="text-xs font-semibold text-slate-200 block">
-                          {cameraErrorInfo ? cameraErrorInfo.message : (simulatedCameraCut ? 'Camera Interrupted' : 'Camera Inactive')}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Faces Observed:</span>
+                  <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                    {liveDetection.faceCount === 1 ? (
+                      <span className="text-emerald-700 font-medium">
+                        {formatPersonCount(1)}
+                      </span>
+                    ) : liveDetection.faceCount > 1 ? (
+                      <span className="text-amber-800 font-medium flex items-center gap-1.5">
+                        <span>{formatPersonCount(liveDetection.faceCount)}</span>
+                        <span className="text-[9px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-mono font-bold">
+                          IM-102 0 Risk
                         </span>
-                        <span className="text-[10px] text-slate-400 leading-tight block mt-0.5">
-                          {cameraErrorInfo ? cameraErrorInfo.guidance : 'Camera is not currently capturing frames.'}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => initializeCamera(true)}
-                        disabled={isRequestingMedia}
-                        className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold text-[11px] shadow-xs inline-flex items-center gap-1"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>Retry Camera</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Privacy pill */}
-                  <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-slate-900/80 backdrop-blur-xs text-[9px] text-teal-300 font-mono border border-teal-500/30">
-                    Local IM-102 CV
-                  </div>
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-medium">
+                        {formatPersonCount(0)}
+                      </span>
+                    )}
+                  </span>
                 </div>
 
-                {/* Real-Time Detection Telemetry Panel */}
-                <div className="space-y-1.5 pt-1 text-xs">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">Candidate Focus:</span>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        liveDetection.facePresent && liveDetection.headPose === 'forward'
-                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          : liveDetection.facePresent
-                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                          : 'bg-rose-50 text-rose-800 border border-rose-200'
-                      }`}
-                    >
-                      {liveDetection.facePresent
-                        ? (liveDetection.headPose === 'forward'
-                          ? 'Focused'
-                          : `Deflected (${liveDetection.headPose})`)
-                        : 'No Face'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">Faces Observed:</span>
-                    <span className="font-semibold text-slate-800 flex items-center gap-1">
-                      {liveDetection.faceCount === 1 ? (
-                        <span className="text-emerald-700 font-medium">1 Verified</span>
-                      ) : liveDetection.faceCount >= 2 ? (
-                        <span className="text-amber-700 font-medium flex items-center gap-1">
-                          <Users className="w-3 h-3 text-amber-600" />
-                          <span>{liveDetection.faceCount} Persons</span>
-                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-mono font-bold">
-                            Zero Risk
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">None detected</span>
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">Ambient Light:</span>
-                    <span
-                      className={`font-semibold text-[10px] ${
-                        liveDetection.lightingCategory === 'adequate'
-                          ? 'text-emerald-700'
-                          : 'text-amber-700'
-                      }`}
-                    >
-                      {liveDetection.lightingLevel} Lux ({liveDetection.lightingCategory})
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">Device Guard:</span>
-                    <span className="font-semibold text-slate-800 flex items-center gap-1">
-                      {liveDetection.phonePresent ? (
-                        <span className="text-rose-700 font-bold flex items-center gap-1">
-                          <Smartphone className="w-3 h-3 text-rose-600 animate-pulse" />
-                          <span>Phone Detected</span>
-                          <span className="text-[9px] bg-rose-100 text-rose-800 px-1 rounded font-mono font-bold">
-                            Restricted
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="text-emerald-700 font-medium">No Devices</span>
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">Microphone:</span>
-                    <span className="font-semibold text-emerald-600">
-                      {micPermissionState === 'granted' ? `Active (${micAudioLevel}%)` : 'Muted'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-100">
-                    <span>CV Frame Rate:</span>
-                    <span className="font-mono text-teal-600 font-bold">{liveDetection.fps || 20} FPS</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Demo Simulation Controls Drawer */}
-              <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200 shadow-xs space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Demo Conditions</span>
-                </div>
-                <p className="text-[10px] text-slate-500">
-                  Simulate events to verify Policy IM-102 safeguards in reviewer queue:
-                </p>
-
-                <div className="grid grid-cols-2 gap-1.5 text-xs">
-                  <button
-                    onClick={handleTriggerSimulatedBackgroundPerson}
-                    className={`p-1.5 rounded-lg border text-left transition-colors ${
-                      simulatedExtraPersonsCount > 0
-                        ? 'bg-amber-100 border-amber-400 text-amber-950 font-semibold'
-                        : 'bg-white border-slate-200 hover:border-amber-400 text-slate-800'
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Ambient Light:</span>
+                  <span
+                    className={`font-semibold text-[11px] ${
+                      liveDetection.lightingCategory === 'adequate'
+                        ? 'text-emerald-700'
+                        : 'text-amber-700'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <strong className="block text-[11px]">Multiple Faces</strong>
-                      {simulatedExtraPersonsCount > 0 && (
-                        <span className="px-1 py-0.2 bg-amber-200 rounded text-[9px] font-bold">
-                          +{simulatedExtraPersonsCount}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-slate-500">
-                      {simulatedExtraPersonsCount === 0
-                        ? 'Simulate 2-4 Faces'
-                        : `${simulatedExtraPersonsCount + 1} Faces (Click to cycle)`}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => setSimulatedPhonePresent(!simulatedPhonePresent)}
-                    className={`p-1.5 rounded-lg border text-left transition-colors ${
-                      simulatedPhonePresent
-                        ? 'bg-rose-100 border-rose-400 text-rose-950 font-semibold'
-                        : 'bg-white border-slate-200 hover:border-rose-400 text-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <strong className="block text-[11px]">Phone Alert</strong>
-                      <Smartphone className="w-3 h-3 text-rose-600" />
-                    </div>
-                    <span className="text-[10px] text-slate-500">
-                      {simulatedPhonePresent ? 'Active (Restricted)' : 'Simulate iPhone'}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={handleTriggerSimulatedLighting}
-                    className="p-1.5 rounded-lg bg-white border border-slate-200 hover:border-amber-400 text-left"
-                  >
-                    <strong className="block text-slate-800 text-[11px]">Low Light</strong>
-                    <span className="text-[10px] text-slate-400">&lt;15 Lux</span>
-                  </button>
-
-                  <button
-                    onClick={handleTriggerSimulatedNetworkDegradation}
-                    className="p-1.5 rounded-lg bg-white border border-slate-200 hover:border-amber-400 text-left"
-                  >
-                    <strong className="block text-slate-800 text-[11px]">Net Drop</strong>
-                    <span className="text-[10px] text-slate-400">Loss 18%</span>
-                  </button>
-
-                  <button
-                    onClick={handleTriggerSimulatedCameraCut}
-                    className="p-1.5 rounded-lg bg-white border border-slate-200 hover:border-amber-400 text-left"
-                  >
-                    <strong className="block text-slate-800 text-[11px]">Camera Cut</strong>
-                    <span className="text-[10px] text-slate-400">5-Sec Pause</span>
-                  </button>
+                    {liveDetection.lightingLevel} Lux ({liveDetection.lightingCategory})
+                  </span>
                 </div>
 
-                {/* Explicit Authorized Workflow: Capture Verification Snapshot */}
-                <div className="pt-1.5 border-t border-amber-200/60">
-                  <button
-                    onClick={handleCaptureAuthorizedSnapshot}
-                    className="w-full py-1.5 px-2 rounded-lg bg-white border border-amber-300 hover:bg-amber-100/60 text-slate-800 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <Camera className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Capture Authorized Verification Snapshot</span>
-                  </button>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Microphone:</span>
+                  <span className="font-semibold text-emerald-600 text-[11px]">
+                    {micPermissionState === 'granted' ? `Active (${micAudioLevel}%)` : 'Muted'}
+                  </span>
+                </div>
 
-                  {authorizedSnapshot && (
-                    <div className="mt-2 p-2 rounded-lg bg-white border border-slate-200 flex items-center gap-2">
-                      <img
-                        src={authorizedSnapshot.dataUrl}
-                        alt="Authorized Snapshot"
-                        className="w-12 h-9 object-cover rounded border border-slate-200"
-                      />
-                      <div className="text-[10px] leading-tight">
-                        <strong className="text-slate-800 block">Authorized Snapshot</strong>
-                        <span className="text-slate-400">{authorizedSnapshot.timestamp} &middot; Candidate Consent</span>
-                      </div>
-                    </div>
-                  )}
+                <div className="flex items-center justify-between text-xs text-slate-400 pt-1.5 border-t border-slate-100">
+                  <span>CV Frame Rate:</span>
+                  <span className="font-mono text-teal-600 font-bold text-xs">{liveDetection.fps || 20} FPS</span>
                 </div>
               </div>
             </div>
@@ -4378,58 +3634,6 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
             >
               Start Another Mock Exam
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* 4-Side Environment Photo Lightbox Inspector Modal */}
-      {inspectingSidePhoto && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
-          onClick={() => setInspectingSidePhoto(null)}
-        >
-          <div
-            className="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl text-white"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-3.5 border-b border-slate-800 bg-slate-900/90">
-              <div className="flex items-center gap-2">
-                <Compass className="w-4 h-4 text-teal-400" />
-                <div>
-                  <h3 className="text-xs font-bold text-white">{inspectingSidePhoto.title}</h3>
-                  <span className="text-[10px] text-teal-400 font-mono">Policy IM-102 Environment Check</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setInspectingSidePhoto(null)}
-                className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-                title="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-3 bg-black flex items-center justify-center">
-              <img
-                src={inspectingSidePhoto.image}
-                alt={inspectingSidePhoto.title}
-                className="max-h-[55vh] w-auto object-contain rounded-lg border border-slate-800"
-              />
-            </div>
-
-            <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-              <span className="text-[11px]">
-                {inspectingSidePhoto.sideKey === 'room_back'
-                  ? 'Policy IM-102 Protected: Shared background carries 0 penalty'
-                  : 'Verified on-device via mobile environment check'}
-              </span>
-              <button
-                onClick={() => setInspectingSidePhoto(null)}
-                className="px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition-colors"
-              >
-                Close Preview
-              </button>
-            </div>
           </div>
         </div>
       )}

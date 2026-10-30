@@ -1,3 +1,5 @@
+import React from 'react';
+import { renderToString } from 'react-dom/server';
 import { describe, it, expect } from 'vitest';
 import { SYNTHETIC_EXAM_QUESTIONS } from '../candidate/examQuestions';
 import {
@@ -5,7 +7,15 @@ import {
   EventSource,
   CandidateEventRecord,
 } from '../types/proctoring';
-import { LiveDetectionResult, evaluateExamKeyLockdown, DetectedFaceBox } from '../candidate/CandidatePortal';
+import {
+  LiveDetectionResult,
+  evaluateExamKeyLockdown,
+  formatPersonCount,
+  applyTemporalSmoothing,
+  detectFacesFromImageData,
+  DetectedFaceBox,
+} from '../candidate/CandidatePortal';
+import { Navbar } from '../components/Navbar';
 import { DEMO_EVIDENCE_FRAMES, getStoredEvidenceFrames, saveStoredEvidenceFrame } from '../utils/evidenceFrameCapture';
 import { FALLBACK_SESSIONS } from '../data/fallbackSessions';
 import { generateSimulatedSidePhoto, SideKey } from '../candidate/MobileEnvironmentCheckPage';
@@ -1332,6 +1342,286 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       ]);
       // Factor 4 (Room & Network Environment) must remain 0% penalty
       expect(mockReviewerSession.contributing_factors.environmental_reliability).toBe(0.0);
+    });
+  });
+
+  describe('8. Active Exam Minimal Header Guardrails', () => {
+    it('hides Landing, Reviewer, Candidate tabs, subtitle, and version badge during active exam', () => {
+      const html = renderToString(
+        React.createElement(Navbar, {
+          appMode: 'candidate',
+          onToggleAppMode: () => {},
+          isExamActive: true,
+          modelVersion: '2.0.0',
+        })
+      );
+
+      // Must keep FairProctor-AI brand logo and name
+      expect(html).toContain('FairProctor-AI');
+
+      // Must hide the 5 navigation & badge elements
+      expect(html).not.toContain('Candidate Portal');
+      expect(html).not.toContain('2.0.0');
+      expect(html).not.toContain('Landing');
+      expect(html).not.toContain('Reviewer');
+      expect(html).not.toContain('Candidate</span>');
+    });
+
+    it('preserves full header navigation, subtitle, and version badge in non-exam state', () => {
+      const html = renderToString(
+        React.createElement(Navbar, {
+          appMode: 'candidate',
+          onToggleAppMode: () => {},
+          isExamActive: false,
+          modelVersion: '2.0.0',
+        })
+      );
+
+      // Must keep brand
+      expect(html).toContain('FairProctor-AI');
+
+      // Must show the 5 elements in standard pre-exam portal state
+      expect(html).toContain('Candidate Portal');
+      expect(html).toContain('2.0.0');
+      expect(html).toContain('Landing');
+      expect(html).toContain('Reviewer');
+      expect(html).toContain('Candidate');
+    });
+
+    it('preserves full header on Reviewer Dashboard even if candidate state changes', () => {
+      const html = renderToString(
+        React.createElement(Navbar, {
+          appMode: 'reviewer',
+          onToggleAppMode: () => {},
+          isExamActive: false,
+          modelVersion: '2.0.0',
+        })
+      );
+
+      expect(html).toContain('FairProctor-AI');
+      expect(html).toContain('Reviewer Dashboard');
+      expect(html).toContain('2.0.0');
+      expect(html).toContain('Landing');
+      expect(html).toContain('Reviewer');
+      expect(html).toContain('Candidate');
+    });
+  });
+
+  describe('15. Active Exam Keyboard Lockdown Shortcuts & Alert Toast Behavior', () => {
+    it('returns concise dynamic messages for specified restricted shortcuts', () => {
+      // Ctrl + S
+      const ctrlS = evaluateExamKeyLockdown({ key: 's', ctrlKey: true });
+      expect(ctrlS.isLocked).toBe(true);
+      expect(ctrlS.message).toContain('Ctrl');
+
+      // Ctrl + P
+      const ctrlP = evaluateExamKeyLockdown({ key: 'p', ctrlKey: true });
+      expect(ctrlP.isLocked).toBe(true);
+      expect(ctrlP.message).toContain('Ctrl');
+
+      // Ctrl + C outside input
+      const ctrlC = evaluateExamKeyLockdown({ key: 'c', ctrlKey: true, isInput: false });
+      expect(ctrlC.isLocked).toBe(true);
+      expect(ctrlC.message).toContain('Ctrl + C');
+
+      // Ctrl + V outside input
+      const ctrlV = evaluateExamKeyLockdown({ key: 'v', ctrlKey: true, isInput: false });
+      expect(ctrlV.isLocked).toBe(true);
+      expect(ctrlV.message).toContain('Ctrl + V');
+
+      // Ctrl + U
+      const ctrlU = evaluateExamKeyLockdown({ key: 'u', ctrlKey: true });
+      expect(ctrlU.isLocked).toBe(true);
+      expect(ctrlU.message).toBe('Ctrl + U is disabled during the examination.');
+
+      // Alt + Tab
+      const altTab = evaluateExamKeyLockdown({ key: 'Tab', altKey: true, code: 'Tab' });
+      expect(altTab.isLocked).toBe(true);
+      expect(altTab.message).toBe('Alt + Tab is disabled during the examination.');
+
+      // F12
+      const f12 = evaluateExamKeyLockdown({ key: 'F12', code: 'F12' });
+      expect(f12.isLocked).toBe(true);
+      expect(f12.message).toBe('Developer tools (F12) are disabled during the examination.');
+
+      // Print Screen
+      const printScreen = evaluateExamKeyLockdown({ key: 'PrintScreen', code: 'PrintScreen' });
+      expect(printScreen.isLocked).toBe(true);
+      expect(printScreen.message).toContain('PrintScreen');
+    });
+
+    it('ensures normal typing in candidate rough work / scratchpad never triggers restrictions', () => {
+      const regularTyping = evaluateExamKeyLockdown({ key: 'a', isInput: true });
+      expect(regularTyping.isLocked).toBe(false);
+
+      const mathSymbol = evaluateExamKeyLockdown({ key: '+', isInput: true });
+      expect(mathSymbol.isLocked).toBe(false);
+
+      const copyInsideNotes = evaluateExamKeyLockdown({ key: 'c', ctrlKey: true, isInput: true });
+      expect(copyInsideNotes.isLocked).toBe(false);
+
+      const pasteInsideNotes = evaluateExamKeyLockdown({ key: 'v', ctrlKey: true, isInput: true });
+      expect(pasteInsideNotes.isLocked).toBe(false);
+    });
+  });
+
+  describe('16. Real-Time Dynamic Multi-Person Face Detection & Counting', () => {
+    it('accurately formats person counts for 0, 1, 2, 3, 4 and N persons', () => {
+      expect(formatPersonCount(0)).toBe('0 Persons Observed');
+      expect(formatPersonCount(1)).toBe('1 Person Observed');
+      expect(formatPersonCount(2)).toBe('2 Persons Observed');
+      expect(formatPersonCount(3)).toBe('3 Persons Observed');
+      expect(formatPersonCount(4)).toBe('4 Persons Observed');
+      expect(formatPersonCount(5)).toBe('5 Persons Observed');
+    });
+
+    it('smooths temporal frame jitter while rapidly adapting to room occupancy changes', () => {
+      const history: number[] = [];
+
+      // 1 person initially
+      expect(applyTemporalSmoothing(history, 1)).toBe(1);
+      expect(applyTemporalSmoothing(history, 1)).toBe(1);
+      expect(applyTemporalSmoothing(history, 1)).toBe(1);
+
+      // Single frame glitch (e.g. momentary occlusion drops to 0) - filtered by mode
+      expect(applyTemporalSmoothing(history, 0)).toBe(1);
+
+      // Person 2 enters room: history fills with 2s
+      applyTemporalSmoothing(history, 2);
+      applyTemporalSmoothing(history, 2);
+      const smoothed2 = applyTemporalSmoothing(history, 2);
+      expect(smoothed2).toBe(2);
+
+      // History never grows past windowSize
+      expect(history.length).toBeLessThanOrEqual(5);
+    });
+
+    // Helper to synthesize a 160x120 test frame with specific skin-colored regions
+    const createTestFrame = (
+      regions: Array<{ x: number; y: number; w: number; h: number }>,
+      backgroundLuminance: number = 30
+    ) => {
+      const width = 160;
+      const height = 120;
+      const data = new Uint8ClampedArray(width * height * 4);
+
+      // Fill background
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = backgroundLuminance;
+        data[i + 1] = backgroundLuminance;
+        data[i + 2] = backgroundLuminance;
+        data[i + 3] = 255;
+      }
+
+      // Fill skin regions (realistic human skin color in Fitzpatrick range)
+      // R=190, G=140, B=110 yields skin in both YCbCr and normalized RGB ranges
+      for (const reg of regions) {
+        const xStart = Math.max(0, Math.min(width, reg.x));
+        const xEnd = Math.max(0, Math.min(width, reg.x + reg.w));
+        const yStart = Math.max(0, Math.min(height, reg.y));
+        const yEnd = Math.max(0, Math.min(height, reg.y + reg.h));
+
+        for (let y = yStart; y < yEnd; y++) {
+          for (let x = xStart; x < xEnd; x++) {
+            const idx = (y * width + x) * 4;
+            data[idx] = 190;
+            data[idx + 1] = 140;
+            data[idx + 2] = 110;
+            data[idx + 3] = 255;
+          }
+        }
+      }
+
+      return { data, width, height };
+    };
+
+    it('detects 0 persons when no faces or skin regions are present in frame', () => {
+      const frame = createTestFrame([]);
+      const result = detectFacesFromImageData(frame);
+
+      expect(result.faceCount).toBe(0);
+      expect(result.facePresent).toBe(false);
+      expect(result.primaryBox).toBeNull();
+      expect(result.secondaryBox).toBeNull();
+      expect(result.faces.length).toBe(0);
+    });
+
+    it('detects exactly 1 person when a single candidate face is centered', () => {
+      // 1 face in the center: x: 64, y: 40, w: 32, h: 40
+      const frame = createTestFrame([{ x: 64, y: 40, w: 32, h: 40 }]);
+      const result = detectFacesFromImageData(frame);
+
+      expect(result.faceCount).toBe(1);
+      expect(result.facePresent).toBe(true);
+      expect(result.primaryBox).not.toBeNull();
+      expect(result.secondaryBox).toBeNull();
+      expect(result.headPose).toBe('forward');
+      expect(result.faceConfidence).toBeGreaterThanOrEqual(75);
+    });
+
+    it('detects exactly 2 persons when a candidate and 1 background person appear', () => {
+      const frame = createTestFrame([
+        { x: 64, y: 40, w: 32, h: 40 }, // Candidate in center
+        { x: 8, y: 16, w: 24, h: 24 },  // Background person in top left
+      ]);
+      const result = detectFacesFromImageData(frame);
+
+      expect(result.faceCount).toBe(2);
+      expect(result.facePresent).toBe(true);
+      expect(result.primaryBox).not.toBeNull();
+      expect(result.secondaryBox).not.toBeNull();
+      expect(result.faces.length).toBe(2);
+    });
+
+    it('detects exactly 3 persons when multiple visible people enter the frame', () => {
+      const frame = createTestFrame([
+        { x: 64, y: 40, w: 32, h: 40 },  // Candidate in center
+        { x: 8, y: 16, w: 24, h: 24 },   // Person 2 (left)
+        { x: 120, y: 16, w: 24, h: 24 }, // Person 3 (right)
+      ]);
+      const result = detectFacesFromImageData(frame);
+
+      expect(result.faceCount).toBe(3);
+      expect(result.faces.length).toBe(3);
+    });
+
+    it('detects exactly 4 persons when 4 distinct individuals occupy the room', () => {
+      const frame = createTestFrame([
+        { x: 64, y: 40, w: 32, h: 40 },  // Candidate
+        { x: 8, y: 16, w: 24, h: 24 },   // Person 2
+        { x: 120, y: 16, w: 24, h: 24 }, // Person 3
+        { x: 16, y: 80, w: 24, h: 24 },  // Person 4
+      ]);
+      const result = detectFacesFromImageData(frame);
+
+      expect(result.faceCount).toBe(4);
+      expect(result.faces.length).toBe(4);
+    });
+
+    it('de-duplicates overlapping face detections to avoid double counting', () => {
+      // Overlapping regions on the same person
+      const frame = createTestFrame([
+        { x: 60, y: 40, w: 32, h: 40 },
+        { x: 64, y: 42, w: 30, h: 38 },
+      ]);
+      const result = detectFacesFromImageData(frame);
+
+      // Connected component clustering and IoU NMS merge them into 1 face
+      expect(result.faceCount).toBe(1);
+    });
+
+    it('measures ambient light and accurately classifies adequate vs low lux', () => {
+      const brightFrame = createTestFrame([], 160);
+      const lowFrame = createTestFrame([], 20);
+
+      const brightResult = detectFacesFromImageData(brightFrame);
+      const lowResult = detectFacesFromImageData(lowFrame);
+
+      expect(brightResult.lightingCategory).toBe('adequate');
+      expect(brightResult.lightingLevel).toBeGreaterThanOrEqual(18);
+
+      expect(lowResult.lightingCategory).toBe('low');
+      expect(lowResult.lightingLevel).toBeLessThan(18);
     });
   });
 

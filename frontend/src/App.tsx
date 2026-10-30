@@ -51,6 +51,16 @@ const DashboardInner: React.FC = () => {
   const [activePage, setActivePage] = useState<PageId>('overview');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
+  // Active exam state for minimal header presentation during exams
+  const [isExamActive, setIsExamActive] = useState<boolean>(() => {
+    try {
+      const screen = sessionStorage.getItem('fairproctor_current_screen');
+      return screen === 'active_exam' || screen === 'submission_confirm';
+    } catch {
+      return false;
+    }
+  });
+
   // Data states
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [sessions, setSessions] = useState<SessionSummaryItem[]>(toSummaryItems(FALLBACK_SESSIONS));
@@ -252,7 +262,11 @@ const DashboardInner: React.FC = () => {
   const envCount = sessions.reduce((acc, s) => acc + s.environmental_warnings_count, 0);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className={`flex flex-col bg-slate-50 ${
+      appMode === 'candidate' && isExamActive
+        ? 'min-h-screen lg:h-screen lg:max-h-screen lg:overflow-hidden'
+        : 'min-h-screen'
+    }`}>
       
       {/* Mode 0: Mobile Environment Check Page (Dedicated Mobile Route) */}
       {appMode === 'mobile_check' && (
@@ -283,13 +297,19 @@ const DashboardInner: React.FC = () => {
             onRefreshHealth={handleRetryConnection}
             appMode={appMode}
             onToggleAppMode={setAppMode}
+            isExamActive={appMode === 'candidate' && isExamActive}
           />
 
           {/* Mode 1: Candidate Examination Portal */}
           {appMode === 'candidate' && (
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <main className={`w-full mx-auto ${
+              isExamActive
+                ? 'flex-1 max-w-7xl flex flex-col min-h-0 px-3 sm:px-5 lg:px-6 py-2 sm:py-2.5 overflow-y-auto lg:overflow-hidden'
+                : 'flex-1 max-w-7xl px-4 sm:px-6 lg:px-8 py-6'
+            }`}>
               <CandidatePortal
                 onReturnToReviewer={(sessionId) => {
+                  setIsExamActive(false);
                   setAppMode('reviewer');
                   if (sessionId) {
                     handleSelectSession(sessionId);
@@ -298,6 +318,7 @@ const DashboardInner: React.FC = () => {
                   }
                   loadData();
                 }}
+                onExamStateChange={setIsExamActive}
               />
             </main>
           )}

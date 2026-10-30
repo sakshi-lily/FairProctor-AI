@@ -220,3 +220,31 @@
     linear-gradient(to bottom, rgba(16, 24, 40, 0.04) 1px, transparent 1px);
   background-size: 48px 48px;
 }
+
+/* FairProctor-AI Active Exam Repeating Watermark Background */
+.exam-watermark-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='170' viewBox='0 0 280 170'%3E%3Ctext x='140' y='42' transform='rotate(-30 140 42)' text-anchor='middle' font-family='system-ui, -apple-system, sans-serif' font-size='15' font-weight='700' fill='%230f766e' fill-opacity='0.075'%3EFairProctor-AI%3C/text%3E%3Ctext x='0' y='127' transform='rotate(-30 0 127)' text-anchor='middle' font-family='system-ui, -apple-system, sans-serif' font-size='15' font-weight='700' fill='%230f766e' fill-opacity='0.075'%3EFairProctor-AI%3C/text%3E%3Ctext x='280' y='127' transform='rotate(-30 280 127)' text-anchor='middle' font-family='system-ui, -apple-system, sans-serif' font-size='15' font-weight='700' fill='%230f766e' fill-opacity='0.075'%3EFairProctor-AI%3C/text%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-position: center;
+}
+
+/* Slide down animation for restricted action toast notifications */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -16px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

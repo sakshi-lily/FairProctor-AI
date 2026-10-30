@@ -8,3 +8,4 @@ pydantic>=2.7.0
 fastapi>=0.110.0
 pytest>=8.0.0
 httpx
+httpx2==2.16.0

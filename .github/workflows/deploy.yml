@@ -141,6 +141,15 @@ jobs:
               DOCKER_CMD="sudo -E docker"
             fi
 
+            # Ensure Docker Compose plugin or binary is available
+            if ! $DOCKER_CMD compose version &> /dev/null; then
+              echo "📦 Installing Docker Compose standalone binary..."
+              sudo curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+              sudo mkdir -p /usr/local/lib/docker/cli-plugins
+              sudo ln -sf /usr/local/bin/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
+            fi
+
             # Authenticate Docker directly with Amazon ECR
             echo "${ECR_PASSWORD}" | $DOCKER_CMD login --username AWS --password-stdin "${ECR_REGISTRY}"
 

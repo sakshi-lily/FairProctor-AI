@@ -1,0 +1,194 @@
+name: Build, Test & Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+  BACKEND_IMAGE_NAME: fairproctor-backend
+  FRONTEND_IMAGE_NAME: fairproctor-frontend
+
+jobs:
+  # =========================================================================
+  # 1. Automated Test & Lint Validation Job
+  # =========================================================================
+  test:
+    name: Run Unit Tests & Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio "uvicorn[standard]"
+
+      - name: Run Backend Pytest Suite
+        run: |
+          python -m pytest -v tests/
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Frontend Vitest Suite
+        working-directory: frontend
+        run: npm test -- --run
+
+      - name: Validate Frontend Production Build
+        working-directory: frontend
+        run: npm run build
+
+  # =========================================================================
+  # 2. Build & Push Multi-Architecture Containers to Amazon ECR
+  # =========================================================================
+  build-and-push:
+    name: Build & Push Docker Images to ECR
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    outputs:
+      registry: ${{ steps.login-ecr.outputs.registry }}
+      image_tag: ${{ github.sha }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Ensure ECR Repositories Exist
+        run: |
+          aws ecr describe-repositories --repository-names ${{ env.BACKEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} || \
+            aws ecr create-repository --repository-name ${{ env.BACKEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} --image-scanning-configuration scanOnPush=true
+
+          aws ecr describe-repositories --repository-names ${{ env.FRONTEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} || \
+            aws ecr create-repository --repository-name ${{ env.FRONTEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} --image-scanning-configuration scanOnPush=true
+
+      - name: Build & Push Backend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Frontend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =========================================================================
+  # 3. Deploy Containers to AWS EC2 Instance via Docker Compose
+  # =========================================================================
+  deploy-ec2:
+    name: Deploy to AWS EC2 Server
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: ${{ secrets.EC2_HOST != '' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Copy Production Compose File to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: 'docker-compose.prod.yml'
+          target: '~/fairproctor/'
+
+      - name: Deploy & Restart Containers on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ECR_REGISTRY: ${{ needs.build-and-push.outputs.registry }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: ECR_REGISTRY,IMAGE_TAG,AWS_REGION
+          script: |
+            set -e
+            echo "🚀 Starting FairProctor-AI Deployment on EC2..."
+
+            # Ensure Docker & Docker Compose are present
+            if ! command -v docker &> /dev/null; then
+              echo "❌ Docker not found! Please run ~/fairproctor/scripts/setup_ec2.sh on your instance."
+              exit 1
+            fi
+
+            # Authenticate EC2 Docker with Amazon ECR
+            echo "🔑 Authenticating Docker with Amazon ECR..."
+            aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+
+            cd ~/fairproctor
+
+            # Export variables for compose file
+            export ECR_REGISTRY="${ECR_REGISTRY}"
+            export IMAGE_TAG="${IMAGE_TAG}"
+
+            echo "📦 Pulling latest production container images..."
+            docker compose -f docker-compose.prod.yml pull
+
+            echo "🔄 Launching updated services..."
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "🧹 Pruning old unused Docker layers..."
+            docker image prune -f
+
+            echo "🔍 Verifying container health..."
+            sleep 6
+            docker compose -f docker-compose.prod.yml ps
+
+            echo "✅ FairProctor-AI successfully deployed to EC2!"

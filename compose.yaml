@@ -3,29 +3,43 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: fairproctor-backend:latest
     container_name: fairproctor-backend
     ports:
       - "8000:8000"
+    environment:
+      - PORT=8000
+      - ENVIRONMENT=development
     healthcheck:
       test:
         - CMD
         - python
         - -c
         - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
-      interval: 30s
+      interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 15s
     restart: unless-stopped
+    networks:
+      - fairproctor-net
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: fairproctor-frontend:latest
     container_name: fairproctor-frontend
     ports:
-      - "8080:80"
+      - "80:80"
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - fairproctor-net
+
+networks:
+  fairproctor-net:
+    name: fairproctor-net
+    driver: bridge

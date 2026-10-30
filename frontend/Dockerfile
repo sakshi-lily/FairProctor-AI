@@ -1,5 +1,5 @@
 # Stage 1: Build frontend
-FROM node:24-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -18,6 +18,10 @@ RUN npm run build
 # Stage 2: Production server
 FROM nginx:alpine
 
+# Copy custom Nginx configuration with reverse proxy & SPA routing
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy compiled frontend distribution
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80

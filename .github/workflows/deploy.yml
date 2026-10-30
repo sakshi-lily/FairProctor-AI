@@ -1,4 +1,4 @@
-name: Build, Test & Deploy to AWS EC2
+name: Fast Build, Test & Deploy to AWS EC2
 
 on:
   push:
@@ -13,34 +13,34 @@ env:
   FRONTEND_IMAGE_NAME: fairproctor-frontend
 
 jobs:
-  # =========================================================================
-  # 1. Automated Test & Lint Validation Job
-  # =========================================================================
-  test:
-    name: Run Unit Tests & Build Check
+  deploy:
+    name: Fast Test, Build & Deploy to AWS EC2
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # -----------------------------------------------------------------------
+      # 1. Backend Unit Tests
+      # -----------------------------------------------------------------------
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Install Backend Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx "uvicorn[standard]"
-
       - name: Run Backend Pytest Suite
         env:
           PYTHONPATH: src
         run: |
-          python -m pytest -v tests/
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx "uvicorn[standard]"
+          python -m pytest -q tests/
 
+      # -----------------------------------------------------------------------
+      # 2. Frontend Build & Tests
+      # -----------------------------------------------------------------------
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
@@ -48,36 +48,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Frontend Dependencies
+      - name: Test & Build Frontend
         working-directory: frontend
-        run: npm ci
+        run: |
+          npm ci --prefer-offline
+          npm test
+          npm run build
 
-      - name: Run Frontend Vitest Suite
-        working-directory: frontend
-        run: npm test
-
-      - name: Validate Frontend Production Build
-        working-directory: frontend
-        run: npm run build
-
-  # =========================================================================
-  # 2. Build & Push Multi-Architecture Containers to Amazon ECR
-  # =========================================================================
-  build-and-push:
-    name: Build & Push Docker Images to ECR
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    outputs:
-      registry: ${{ steps.login-ecr.outputs.registry }}
-      image_tag: ${{ github.sha }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
+      # -----------------------------------------------------------------------
+      # 3. AWS & ECR Authentication
+      # -----------------------------------------------------------------------
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -90,71 +70,38 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Ensure ECR Repositories Exist
-        continue-on-error: true
         run: |
-          aws ecr describe-repositories --repository-names ${{ env.BACKEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} || \
-            aws ecr create-repository --repository-name ${{ env.BACKEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} --image-scanning-configuration scanOnPush=true || true
+          aws ecr describe-repositories --repository-names ${{ env.BACKEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} 2>/dev/null || \
+            aws ecr create-repository --repository-name ${{ env.BACKEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          aws ecr describe-repositories --repository-names ${{ env.FRONTEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} 2>/dev/null || \
+            aws ecr create-repository --repository-name ${{ env.FRONTEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} 2>/dev/null || true
 
-          aws ecr describe-repositories --repository-names ${{ env.FRONTEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} || \
-            aws ecr create-repository --repository-name ${{ env.FRONTEND_IMAGE_NAME }} --region ${{ env.AWS_REGION }} --image-scanning-configuration scanOnPush=true || true
-
-      - name: Build & Push Backend Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.BACKEND_IMAGE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build & Push Frontend Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # =========================================================================
-  # 3. Deploy Containers to AWS EC2 Instance via Docker Compose
-  # =========================================================================
-  deploy-ec2:
-    name: Deploy to AWS EC2 Server
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verify Deployment Secrets
+      # -----------------------------------------------------------------------
+      # 4. Ultra-Fast Docker Build & Push
+      # -----------------------------------------------------------------------
+      - name: Build & Push Backend Container
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          if [ -z "$EC2_HOST" ]; then
-            echo "::error::Secret EC2_HOST is missing! Add it in GitHub Settings -> Secrets and variables -> Actions."
-            exit 1
-          fi
-          if [ -z "$EC2_SSH_KEY" ]; then
-            echo "::error::Secret EC2_SSH_KEY is missing! Add it in GitHub Settings -> Secrets and variables -> Actions."
-            exit 1
-          fi
-          echo "All EC2 deployment secrets verified."
+          echo "📦 Building Backend Docker image..."
+          docker build -t ${ECR_REGISTRY}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }} -t ${ECR_REGISTRY}/${{ env.BACKEND_IMAGE_NAME }}:latest .
+          echo "🚀 Pushing Backend Docker image to ECR..."
+          docker push ${ECR_REGISTRY}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+          docker push ${ECR_REGISTRY}/${{ env.BACKEND_IMAGE_NAME }}:latest
 
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Build & Push Frontend Container
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          echo "📦 Building Frontend Docker image with pre-compiled assets..."
+          docker build -f frontend/Dockerfile.prod -t ${ECR_REGISTRY}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }} -t ${ECR_REGISTRY}/${{ env.FRONTEND_IMAGE_NAME }}:latest ./frontend
+          echo "🚀 Pushing Frontend Docker image to ECR..."
+          docker push ${ECR_REGISTRY}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}
+          docker push ${ECR_REGISTRY}/${{ env.FRONTEND_IMAGE_NAME }}:latest
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
+      # -----------------------------------------------------------------------
+      # 5. Direct EC2 Deployment
+      # -----------------------------------------------------------------------
       - name: Generate ECR Login Password
         id: ecr-auth
         run: |
@@ -174,8 +121,8 @@ jobs:
       - name: Deploy & Restart Containers on EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
-          ECR_REGISTRY: ${{ needs.build-and-push.outputs.registry }}
-          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
           ECR_PASSWORD: ${{ steps.ecr-auth.outputs.password }}
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -185,33 +132,19 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            echo "🚀 Deploying FairProctor-AI to EC2..."
+            echo "🚀 Launching FairProctor-AI Containers on EC2..."
 
-            # Ensure Docker service is running
             sudo systemctl start docker || true
 
-            # Determine docker execution mode (fallback to sudo if session group not yet active)
             DOCKER_CMD="docker"
             if ! docker info &> /dev/null; then
               DOCKER_CMD="sudo -E docker"
             fi
 
-            # Ensure Docker Compose plugin or binary is available
-            if ! $DOCKER_CMD compose version &> /dev/null; then
-              echo "📦 Installing Docker Compose standalone binary..."
-              sudo curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-              sudo chmod +x /usr/local/bin/docker-compose
-              sudo mkdir -p /usr/local/lib/docker/cli-plugins
-              sudo ln -sf /usr/local/bin/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
-            fi
-
-            # Authenticate Docker directly with Amazon ECR using pre-generated auth token
-            echo "🔑 Authenticating Docker with Amazon ECR..."
+            # Authenticate Docker directly with Amazon ECR
             echo "${ECR_PASSWORD}" | $DOCKER_CMD login --username AWS --password-stdin "${ECR_REGISTRY}"
 
             cd ~/fairproctor
-
-            # Export variables for compose file
             export ECR_REGISTRY="${ECR_REGISTRY}"
             export IMAGE_TAG="${IMAGE_TAG}"
 
@@ -221,11 +154,11 @@ jobs:
             echo "🔄 Launching updated services..."
             $DOCKER_CMD compose -f docker-compose.prod.yml up -d --remove-orphans
 
-            echo "🧹 Pruning old unused Docker layers..."
+            echo "🧹 Cleaning up old Docker layers..."
             $DOCKER_CMD image prune -f
 
             echo "🔍 Verifying container health..."
-            sleep 6
+            sleep 5
             $DOCKER_CMD compose -f docker-compose.prod.yml ps
 
-            echo "✅ FairProctor-AI successfully deployed to EC2!"
+            echo "✅ FairProctor-AI is live and running on EC2!"

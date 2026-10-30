@@ -155,6 +155,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Generate ECR Login Password
+        id: ecr-auth
+        run: |
+          PASSWORD=$(aws ecr get-login-password --region ${{ env.AWS_REGION }})
+          echo "::add-mask::$PASSWORD"
+          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
+
       - name: Copy Production Compose File to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -169,30 +176,18 @@ jobs:
         env:
           ECR_REGISTRY: ${{ needs.build-and-push.outputs.registry }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
-          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_PASSWORD: ${{ steps.ecr-auth.outputs.password }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER || 'ubuntu' }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: ECR_REGISTRY,IMAGE_TAG,AWS_REGION
-          command_timeout: 10m
+          envs: ECR_REGISTRY,IMAGE_TAG,ECR_PASSWORD
+          command_timeout: 5m
           script: |
             set -e
-            echo "🚀 Starting FairProctor-AI Deployment on EC2..."
+            echo "🚀 Deploying FairProctor-AI to EC2..."
 
-            # Clean up any conflicting duplicate docker apt repository list
-            sudo rm -f /etc/apt/sources.list.d/docker.list || true
-
-            # Auto-install AWS CLI v2 if missing (uses python3 to unzip, avoiding apt conflicts)
-            if ! command -v aws &> /dev/null; then
-              echo "☁️ AWS CLI not found. Automatically installing AWS CLI v2..."
-              curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              python3 -c "import zipfile; zipfile.ZipFile('awscliv2.zip').extractall('.')"
-              sudo ./aws/install || sudo ./aws/install --update
-              rm -rf awscliv2.zip ./aws
-            fi
-
-            # Ensure Docker service is started
+            # Ensure Docker service is running
             sudo systemctl start docker || true
 
             # Determine docker execution mode (fallback to sudo if session group not yet active)
@@ -210,9 +205,9 @@ jobs:
               sudo ln -sf /usr/local/bin/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
             fi
 
-            # Authenticate EC2 Docker with Amazon ECR
+            # Authenticate Docker directly with Amazon ECR using pre-generated auth token
             echo "🔑 Authenticating Docker with Amazon ECR..."
-            aws ecr get-login-password --region "${AWS_REGION}" | $DOCKER_CMD login --username AWS --password-stdin "${ECR_REGISTRY}"
+            echo "${ECR_PASSWORD}" | $DOCKER_CMD login --username AWS --password-stdin "${ECR_REGISTRY}"
 
             cd ~/fairproctor
 

@@ -129,6 +129,12 @@ jobs:
             $DOCKER_CMD rm -f fairproctor-backend fairproctor-frontend 2>/dev/null || true
             $DOCKER_CMD compose -f docker-compose.prod.yml down --remove-orphans || true
 
+            echo "🧹 Reclaiming disk space before pull..."
+            $DOCKER_CMD system prune -af --volumes || true
+            sudo journalctl --vacuum-size=50M || true
+            sudo apt-get clean 2>/dev/null || true
+            df -h /
+
             echo "📦 Pulling latest production container images..."
             $DOCKER_CMD compose -f docker-compose.prod.yml pull
 

@@ -32,7 +32,8 @@ export type CandidateEventType =
   | 'EXAM_FULLSCREEN_EXITED'
   | 'EXAM_TAB_HIDDEN'
   | 'EXAM_TAB_VISIBLE'
-  | 'EXAM_WARNING_ACKNOWLEDGED';
+  | 'EXAM_WARNING_ACKNOWLEDGED'
+  | 'POLICY_VIOLATION_RECORDED';
 
 export type EventSource = 'browser' | 'model' | 'simulation' | 'candidate' | 'server';
 
@@ -61,6 +62,14 @@ export interface CreatePairingResponse {
   status: PairingStatus;
 }
 
+export interface EnvironmentSides {
+  desk_front?: string;
+  room_left?: string;
+  room_right?: string;
+  room_back?: string;
+  [key: string]: string | undefined;
+}
+
 export interface PairingStatusResponse {
   session_id: string;
   pairing_token: string;
@@ -74,6 +83,7 @@ export interface PairingStatusResponse {
     desk_cleared_confirmed: boolean;
     room_sweep_completed: boolean;
     candidate_notes?: string;
+    captured_sides?: EnvironmentSides;
     observations?: Record<string, any>;
     submitted_at: string;
   } | null;
@@ -90,6 +100,7 @@ export interface MobileEnvironmentCheckSubmitRequest {
   desk_cleared_confirmed: boolean;
   room_sweep_completed: boolean;
   candidate_notes?: string;
+  captured_sides?: EnvironmentSides;
   observations?: Record<string, any>;
 }
 
@@ -141,6 +152,29 @@ export interface QuestionItem {
   category: string;
 }
 
+export interface CapturedEvidenceFrame {
+  id: string;
+  timestamp: string;
+  timestamp_offset_sec?: number;
+  label: string;
+  reason: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  data_url: string;
+  thumbnail_url?: string;
+  policy_note?: string;
+  bounding_boxes?: Array<{
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color?: string;
+  }>;
+  source?: string;
+  sensor?: string;
+  resolution?: string;
+}
+
 export interface EvidenceItem {
   timestamp_or_interval: string;
   source: string;
@@ -151,6 +185,16 @@ export interface EvidenceItem {
   severity: 'LOW' | 'MEDIUM' | 'HIGH';
   contribution_score: number;
   data_quality_limitations?: string | null;
+  captured_frame?: string | null;
+  captured_frame_thumbnail?: string | null;
+  bounding_boxes?: Array<{
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color?: string;
+  }>;
 }
 
 export interface ContributingFactors {
@@ -211,6 +255,9 @@ export interface SessionDetail {
   is_live_candidate_session?: boolean;
   candidate_status?: string;
   events?: CandidateEventRecord[];
+  captured_frames?: CapturedEvidenceFrame[];
+  environment_check?: PairingStatusResponse['environment_check'];
+  captured_sides?: EnvironmentSides;
   answers_count?: number;
   created_at: string;
 }

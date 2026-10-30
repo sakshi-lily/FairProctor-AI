@@ -1,4 +1,5 @@
 import { OverviewStats, SessionDetail, SessionSummaryItem } from '../types/proctoring';
+import { DEMO_EVIDENCE_FRAMES } from '../utils/evidenceFrameCapture';
 
 export const FALLBACK_OVERVIEW_STATS: OverviewStats = {
   total_sessions: 7,
@@ -28,7 +29,31 @@ export const FALLBACK_SESSIONS: SessionDetail[] = [
         explanation: 'Secondary person walked through background. Candidate maintained forward screen attention without auditory collusion.',
         severity: 'LOW',
         contribution_score: 0.0,
-        data_quality_limitations: 'Single webcam sensor without depth map.'
+        data_quality_limitations: 'Single webcam sensor without depth map.',
+        captured_frame: DEMO_EVIDENCE_FRAMES.sharedRoom,
+        bounding_boxes: [
+          { label: 'Candidate (Primary)', x: 0.28, y: 0.27, width: 0.26, height: 0.43, color: '#10b981' },
+          { label: 'Person 2 • IM-102 Zero Risk', x: 0.77, y: 0.30, width: 0.14, height: 0.25, color: '#f59e0b' }
+        ]
+      }
+    ],
+    captured_frames: [
+      {
+        id: 'frame_demo_shared_room_01',
+        timestamp: '09:17:04 AM',
+        timestamp_offset_sec: 124,
+        label: 'Multiple Faces (2 Persons)',
+        reason: 'Secondary person detected in background living space. Protected under Policy IM-102.',
+        severity: 'LOW',
+        data_url: DEMO_EVIDENCE_FRAMES.sharedRoom,
+        policy_note: 'POLICY IM-102: Shared Living Space Non-Penalized (0 Risk Points)',
+        source: 'video_cv',
+        sensor: 'HD Webcam (Camera Channel 1)',
+        resolution: '640 x 480 px',
+        bounding_boxes: [
+          { label: 'Candidate (Primary)', x: 0.28, y: 0.27, width: 0.26, height: 0.43, color: '#10b981' },
+          { label: 'Person 2 • IM-102 Zero Risk', x: 0.77, y: 0.30, width: 0.14, height: 0.25, color: '#f59e0b' }
+        ]
       }
     ],
     contributing_factors: { visual_cv: 0.05, browser_telemetry: 0.0, environmental_reliability: 0.0, answer_similarity: 0.0 },
@@ -60,7 +85,12 @@ export const FALLBACK_SESSIONS: SessionDetail[] = [
         explanation: 'Visual model v2.0.0 confirmed handheld phone in candidate primary visual field over 24 consecutive frames.',
         severity: 'HIGH',
         contribution_score: 0.62,
-        data_quality_limitations: 'Candidate hand partially occludes bottom edge of screen.'
+        data_quality_limitations: 'Candidate hand partially occludes bottom edge of screen.',
+        captured_frame: DEMO_EVIDENCE_FRAMES.phoneDetection,
+        bounding_boxes: [
+          { label: 'Candidate (Primary)', x: 0.42, y: 0.26, width: 0.25, height: 0.40, color: '#10b981' },
+          { label: '📱 Phone (Restricted)', x: 0.43, y: 0.65, width: 0.18, height: 0.32, color: '#f43f5e' }
+        ]
       },
       {
         timestamp_or_interval: 't=320s',
@@ -71,7 +101,40 @@ export const FALLBACK_SESSIONS: SessionDetail[] = [
         explanation: 'DOM window focus lost concurrently with secondary device appearance.',
         severity: 'MEDIUM',
         contribution_score: 0.15,
-        data_quality_limitations: null
+        data_quality_limitations: null,
+        captured_frame: DEMO_EVIDENCE_FRAMES.tabSwitching
+      }
+    ],
+    captured_frames: [
+      {
+        id: 'frame_demo_phone_02',
+        timestamp: '10:07:35 AM',
+        timestamp_offset_sec: 320,
+        label: 'Unauthorized Mobile Device',
+        reason: 'Handheld smartphone verified in candidate primary visual field over 24 consecutive frames.',
+        severity: 'HIGH',
+        data_url: DEMO_EVIDENCE_FRAMES.phoneDetection,
+        policy_note: 'POLICY SEC-04: Unauthorized Handheld Electronic Device Detected',
+        source: 'video_cv',
+        sensor: 'HD Webcam (Camera Channel 1)',
+        resolution: '640 x 480 px',
+        bounding_boxes: [
+          { label: 'Candidate (Primary)', x: 0.42, y: 0.26, width: 0.25, height: 0.40, color: '#10b981' },
+          { label: '📱 Phone (Restricted)', x: 0.43, y: 0.65, width: 0.18, height: 0.32, color: '#f43f5e' }
+        ]
+      },
+      {
+        id: 'frame_demo_blur_02',
+        timestamp: '10:07:40 AM',
+        timestamp_offset_sec: 325,
+        label: 'Window Blur Intercepted',
+        reason: 'DOM window focus lost concurrently with secondary device appearance.',
+        severity: 'MEDIUM',
+        data_url: DEMO_EVIDENCE_FRAMES.tabSwitching,
+        policy_note: 'Standard Exam Security Policy: Continuous Browser Focus Interruption',
+        source: 'browser_telemetry',
+        sensor: 'DOM Window Focus Monitor',
+        resolution: '640 x 480 px'
       }
     ],
     contributing_factors: { visual_cv: 0.62, browser_telemetry: 0.15, environmental_reliability: 0.0, answer_similarity: 0.0 },
@@ -101,7 +164,23 @@ export const FALLBACK_SESSIONS: SessionDetail[] = [
         explanation: 'Candidate exited examination tab 14 times during coding questions 8-12 with external clipboard paste operations.',
         severity: 'MEDIUM',
         contribution_score: 0.56,
-        data_quality_limitations: null
+        data_quality_limitations: null,
+        captured_frame: DEMO_EVIDENCE_FRAMES.tabSwitching
+      }
+    ],
+    captured_frames: [
+      {
+        id: 'frame_demo_tab_03',
+        timestamp: '11:28:12 AM',
+        timestamp_offset_sec: 680,
+        label: 'Tab Switch / Window Blur Intercepted',
+        reason: 'Candidate exited examination tab 14 times with external clipboard paste operations.',
+        severity: 'MEDIUM',
+        data_url: DEMO_EVIDENCE_FRAMES.tabSwitching,
+        policy_note: 'Standard Exam Security Policy: Continuous Browser Focus Interruption',
+        source: 'browser_telemetry',
+        sensor: 'DOM Navigation & Key Monitor',
+        resolution: '640 x 480 px'
       }
     ],
     contributing_factors: { visual_cv: 0.04, browser_telemetry: 0.52, environmental_reliability: 0.0, answer_similarity: 0.0 },

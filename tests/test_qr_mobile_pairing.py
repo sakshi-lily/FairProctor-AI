@@ -223,3 +223,60 @@ def test_pairing_token_validation_errors(client):
         json={"pairing_token": "different_body_token", "check_status": "completed"},
     )
     assert res_mismatch.status_code == 400
+
+
+def test_four_side_environment_check_submission(client):
+    """Test 4-side environment verification submission and persistence."""
+    res_start = client.post(
+        "/api/v1/candidate/sessions/start",
+        json={"candidate_pseudonym": "cand_4side_test", "is_shared_room_declared": True},
+    )
+    assert res_start.status_code == 200
+    session_id = res_start.json()["session_id"]
+
+    res_pair = client.post(f"/api/v1/candidate/sessions/{session_id}/pairing/create", json={})
+    token = res_pair.json()["pairing_token"]
+
+    # Start mobile check
+    client.post(f"/api/v1/candidate/pairing/{token}/start")
+
+    # Submit 4-side environment check
+    captured_sides = {
+        "desk_front": "data:image/svg+xml;utf8,<svg>desk</svg>",
+        "room_left": "data:image/svg+xml;utf8,<svg>left</svg>",
+        "room_right": "data:image/svg+xml;utf8,<svg>right</svg>",
+        "room_back": "data:image/svg+xml;utf8,<svg>back</svg>",
+    }
+
+    res_submit = client.post(
+        f"/api/v1/candidate/pairing/{token}/submit",
+        json={
+            "pairing_token": token,
+            "check_status": "completed",
+            "lighting_status": "adequate",
+            "camera_status": "available",
+            "desk_cleared_confirmed": True,
+            "room_sweep_completed": True,
+            "captured_sides": captured_sides,
+            "candidate_notes": "All 4 sides verified under Policy IM-102",
+        },
+    )
+    assert res_submit.status_code == 200
+    submit_data = res_submit.json()
+    assert submit_data["status"] == "completed"
+    assert "captured_sides" in submit_data["environment_check"]
+    assert len(submit_data["environment_check"]["captured_sides"]) == 4
+
+    # Verify session detail reflects captured sides
+    res_sess = client.get(f"/api/v1/sessions/{session_id}")
+    assert res_sess.status_code == 200
+    sess_detail = res_sess.json()
+    assert sess_detail["captured_sides"] is not None
+    assert len(sess_detail["captured_sides"]) == 4
+    assert "room_back" in sess_detail["captured_sides"]
+
+    # Verify audit event logged captured_sides_count
+    env_event = next(e for e in sess_detail["events"] if e["event_type"] == CandidateEventType.ENVIRONMENT_CHECK_COMPLETED.value)
+    assert env_event["metadata"]["captured_sides_count"] == 4
+    assert "desk_front" in env_event["metadata"]["sides_captured"]
+

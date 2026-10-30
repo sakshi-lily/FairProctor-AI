@@ -565,6 +565,21 @@ class SessionStore:
         # Append to live event timeline
         session.events.append(record)
 
+        # Append to captured frames gallery if frame is present
+        if payload.metadata and payload.metadata.get("captured_frame"):
+            frame_item = {
+                "id": f"frame_{uuid.uuid4().hex[:8]}",
+                "timestamp": record.timestamp,
+                "label": payload.metadata.get("label", str(payload.event_type)),
+                "reason": payload.metadata.get("reason", "Proctoring evidence frame capture"),
+                "severity": payload.metadata.get("severity", "LOW"),
+                "data_url": payload.metadata["captured_frame"],
+                "policy_note": payload.metadata.get("policy_note"),
+                "bounding_boxes": payload.metadata.get("bounding_boxes", []),
+                "source": str(payload.source),
+            }
+            session.captured_frames.append(frame_item)
+
         # Recalculate risk assessment with the real FairProctorEngine
         self._recalculate_candidate_score(session_id, engine)
 
@@ -973,6 +988,7 @@ class SessionStore:
             "desk_cleared_confirmed": req.desk_cleared_confirmed,
             "room_sweep_completed": req.room_sweep_completed,
             "candidate_notes": req.candidate_notes,
+            "captured_sides": req.captured_sides or {},
             "observations": req.observations,
             "submitted_at": _utc_now_iso(),
         }
@@ -983,6 +999,10 @@ class SessionStore:
 
         state = self._candidate_states.setdefault(session_id, {})
         state["env_check"] = check_data
+
+        # Attach to active session record for reviewer inspection
+        session.environment_check = check_data
+        session.captured_sides = req.captured_sides or {}
 
         # Determine event type based on outcome
         if req.check_status in ["camera_unavailable", "declined", "technical_failure"]:
@@ -1001,6 +1021,8 @@ class SessionStore:
                 "camera_status": req.camera_status,
                 "desk_cleared": req.desk_cleared_confirmed,
                 "room_sweep": req.room_sweep_completed,
+                "captured_sides_count": len(req.captured_sides or {}),
+                "sides_captured": list((req.captured_sides or {}).keys()),
                 "notes": req.candidate_notes or "",
             },
             is_simulated=False,
@@ -1015,6 +1037,7 @@ class SessionStore:
             "check_status": req.check_status,
             "lighting_status": req.lighting_status,
             "pairing_code": record["pairing_code"],
+            "captured_sides_count": len(req.captured_sides or {}),
         })
 
         return self.get_pairing_status(req.pairing_token)

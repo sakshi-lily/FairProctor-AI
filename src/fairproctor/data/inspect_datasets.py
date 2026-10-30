@@ -57,12 +57,12 @@ class DatasetInspector:
         }
 
     def discover_files(self) -> List[Path]:
-        """Find all supported data files in root_dir, excluding virtual environments and git."""
+        """Find all supported data files in root_dir, excluding virtual environments, web apps, and git."""
         found: List[Path] = []
         for path in self.root_dir.rglob("*"):
-            # Exclude virtualenvs, git, cache, artifacts
+            # Exclude virtualenvs, git, cache, artifacts, frontend, node_modules
             parts = [p.lower() for p in path.parts]
-            if any(p in parts for p in [".git", ".venv", "venv", "__pycache__", "artifacts", ".system_generated"]):
+            if any(p in parts for p in [".git", ".venv", "venv", "__pycache__", "artifacts", ".system_generated", "node_modules", "frontend", "dist", ".pytest_cache"]):
                 continue
 
             if path.is_file() and path.suffix.lower() in self.SUPPORTED_EXTENSIONS:
@@ -74,7 +74,7 @@ class DatasetInspector:
         findings = []
         for path in self.root_dir.rglob("*.docx"):
             parts = [p.lower() for p in path.parts]
-            if any(p in parts for p in [".git", ".venv", "venv", "__pycache__"]):
+            if any(p in parts for p in [".git", ".venv", "venv", "__pycache__", "node_modules", "frontend", "dist"]):
                 continue
             try:
                 rel_path = path.relative_to(self.root_dir).as_posix()
@@ -124,7 +124,10 @@ class DatasetInspector:
             }
 
         n_rows, n_cols = df.shape
-        duplicates = int(df.duplicated().sum())
+        try:
+            duplicates = int(df.duplicated().sum())
+        except Exception:
+            duplicates = 0
 
         columns_meta: Dict[str, Any] = {}
         candidate_targets: List[str] = []
@@ -137,7 +140,10 @@ class DatasetInspector:
             series = df[col]
             n_missing = int(series.isna().sum())
             missing_pct = round((n_missing / max(n_rows, 1)) * 100, 3)
-            n_unique = int(series.nunique(dropna=True))
+            try:
+                n_unique = int(series.nunique(dropna=True))
+            except Exception:
+                n_unique = 0
 
             col_lower = col_str.lower().strip()
             # Candidate checks

@@ -98,9 +98,9 @@ All model selection decisions were performed exclusively on the 80% development 
 
 ## 6. CPU Performance & Low-Bandwidth Telemetry
 
-- **Visual Frame Inference Latency (Model v2)**: **0.015 ms / frame** (Single CPU core)
-- **CPU Throughput Capacity**: **65,197.3 frames / second**
-- **Session Risk Engine End-to-End Latency**: **4.32 ms** per full session
+- **Visual Frame Inference Latency (Model v2)**: **0.014 ms / frame** (Single CPU core)
+- **CPU Throughput Capacity**: **72,861.8 frames / second**
+- **Session Risk Engine End-to-End Latency**: **20.31 ms** per full session
 - **Model Artifact Size on Disk**: **0.006 MB** (`visual_behavior_model_v2.joblib`)
 - **Low-Bandwidth 0.2 FPS Downsampling Stability**: **STABLE** (Full stream anomaly rate: 0.4719, Downsampled rate: 0.4654)
 

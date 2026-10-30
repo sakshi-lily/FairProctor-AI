@@ -5,6 +5,7 @@ import {
   toSummaryItems,
 } from '../data/fallbackSessions';
 import { apiClient } from '../api/client';
+import { parseMLExplanation } from '../components/FormattedMLExplanation';
 
 describe('FairProctor-AI Reviewer Dashboard Tests', () => {
 
@@ -162,6 +163,64 @@ describe('FairProctor-AI Reviewer Dashboard Tests', () => {
       expect(session.risk_score).toBe(originalRisk);
       expect(session.integrity_score).toBe(originalIntegrity);
       expect(session.decision_record.reviewer_id).toBe('rev_lead_01');
+    });
+  });
+
+  describe('7. ML Explanation Formatter & Parsing Engine', () => {
+    const sampleBriefing = `=== FairProctor-AI Reviewer Summary for Session: sess_live_cand_7edf51 ===
+Review Priority: LOW (Risk Score: 20.0/100, Integrity Score: 80.0/100)
+Engine Version: Model v2.0.0 | Policy v1.0.0
+
+Operational Principle:
+This score is a provisional review-priority heuristic (0-100) to guide human review queues. It is NOT an automated accusation, penalty, or empirical probability of cheating.
+
+Risk Breakdown by Factor:
+ - Visual Behavior: +20.0 pts
+ - Browser Events: +0.0 pts
+ - Cross Candidate Similarity: +0.0 pts
+
+Environmental Safeguards & Mitigations:
+ [Context] Shared room / background activity observed. Per IM-102 policy, presence of background individuals alone is NOT grounds for penalty.
+
+Evidence Timeline (2 traceable flags):
+ [2s - 105s] (VIDEO_CV) PROLONGED_LOOKING_AWAY [MEDIUM]: Candidate gaze diverted from screen for 108.0s. Reviewer should verify if candidate is consulting permitted scratchpad / physical calculation notes.
+ [Multiple intervals] (ENVIRONMENTAL) BACKGROUND_PERSON_DETECTED [INFO]: Secondary person observed in background; not penalized per shared-room policy.`;
+
+    it('correctly parses structured reviewer briefing into sections', () => {
+      const parsed = parseMLExplanation(sampleBriefing);
+
+      expect(parsed.isStructured).toBe(true);
+      expect(parsed.reviewPriority).toBe('LOW');
+      expect(parsed.riskScore).toBe('20.0');
+      expect(parsed.integrityScore).toBe('80.0');
+      expect(parsed.sessionId).toBe('sess_live_cand_7edf51');
+      expect(parsed.operationalPrinciple).toContain('provisional review-priority heuristic');
+      expect(parsed.operationalPrinciple).not.toContain('Review Priority');
+
+      expect(parsed.riskFactors.length).toBe(3);
+      expect(parsed.riskFactors[0].name).toBe('Visual Behavior');
+      expect(parsed.riskFactors[0].points).toBe('+20.0 pts');
+
+      expect(parsed.environmentalSafeguards.length).toBe(1);
+      expect(parsed.environmentalSafeguards[0]).toContain('Shared room / background activity observed');
+
+      expect(parsed.evidenceItems.length).toBe(2);
+      expect(parsed.evidenceItems[0].timeOrInterval).toBe('2s - 105s');
+      expect(parsed.evidenceItems[0].source).toBe('VIDEO_CV');
+      expect(parsed.evidenceItems[0].type).toBe('PROLONGED_LOOKING_AWAY');
+      expect(parsed.evidenceItems[0].severity).toBe('MEDIUM');
+      expect(parsed.evidenceItems[0].explanation).toContain('Candidate gaze diverted from screen');
+
+      expect(parsed.evidenceItems[1].severity).toBe('INFO');
+      expect(parsed.evidenceItems[1].type).toBe('BACKGROUND_PERSON_DETECTED');
+    });
+
+    it('handles unstructured single-line summary with fallback', () => {
+      const unstructured = 'Exam completed within all security tolerances. No anomalous visual signatures.';
+      const parsed = parseMLExplanation(unstructured);
+
+      expect(parsed.isStructured).toBe(false);
+      expect(parsed.fallbackText).toBe(unstructured);
     });
   });
 

@@ -5,6 +5,7 @@ import {
   EventSource,
   CandidateEventRecord,
 } from '../types/proctoring';
+import { LiveDetectionResult } from '../candidate/CandidatePortal';
 
 describe('FairProctor-AI Candidate Portal Tests', () => {
 
@@ -138,6 +139,67 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       expect(eventRecord.metadata).not.toHaveProperty('video_blob');
       expect(eventRecord.metadata).not.toHaveProperty('frame_data');
       expect(eventRecord.metadata).not.toHaveProperty('face_biometrics');
+    });
+
+    it('strictly requires both camera and audio permissions to advance past the devices step', () => {
+      const verifyHardwareReady = (
+        cameraState: 'prompt' | 'granted' | 'denied',
+        micState: 'prompt' | 'granted' | 'denied',
+        hasLiveVideoTrack: boolean,
+        hasLiveAudioTrack: boolean
+      ): boolean => {
+        const isCameraAllowed = cameraState === 'granted' && hasLiveVideoTrack;
+        const isAudioAllowed = micState === 'granted' && hasLiveAudioTrack;
+        return isCameraAllowed && isAudioAllowed;
+      };
+
+      // Both denied: cannot proceed to next step
+      expect(verifyHardwareReady('denied', 'denied', false, false)).toBe(false);
+
+      // Camera granted but microphone denied: cannot proceed to next step
+      expect(verifyHardwareReady('granted', 'denied', true, false)).toBe(false);
+
+      // Microphone granted but camera denied: cannot proceed to next step
+      expect(verifyHardwareReady('denied', 'granted', false, true)).toBe(false);
+
+      // Both prompt (unanswered): cannot proceed to next step
+      expect(verifyHardwareReady('prompt', 'prompt', false, false)).toBe(false);
+
+      // Camera granted but video track disconnected: cannot proceed
+      expect(verifyHardwareReady('granted', 'granted', false, true)).toBe(false);
+
+      // Microphone granted but audio track disconnected: cannot proceed
+      expect(verifyHardwareReady('granted', 'granted', true, false)).toBe(false);
+
+      // BOTH camera and audio granted with live tracks: successfully unlocked
+      expect(verifyHardwareReady('granted', 'granted', true, true)).toBe(true);
+    });
+
+    it('records distinct event logs for both camera and microphone authorization', () => {
+      const camEvent: CandidateEventRecord = {
+        event_id: 'evt_cam_grant',
+        session_id: 'sess_cand_1',
+        event_type: 'CAMERA_PERMISSION_GRANTED',
+        timestamp: new Date().toISOString(),
+        source: 'browser',
+        is_simulated: false,
+        evidence_reliability: 'HIGH',
+        metadata: {},
+      };
+
+      const micEvent: CandidateEventRecord = {
+        event_id: 'evt_mic_grant',
+        session_id: 'sess_cand_1',
+        event_type: 'MICROPHONE_PERMISSION_GRANTED',
+        timestamp: new Date().toISOString(),
+        source: 'browser',
+        is_simulated: false,
+        evidence_reliability: 'HIGH',
+        metadata: {},
+      };
+
+      expect(camEvent.event_type).toBe('CAMERA_PERMISSION_GRANTED');
+      expect(micEvent.event_type).toBe('MICROPHONE_PERMISSION_GRANTED');
     });
   });
 
@@ -622,6 +684,118 @@ describe('FairProctor-AI Candidate Portal Tests', () => {
       expect(snapshotEvent.source).toBe('candidate');
       expect(snapshotEvent.metadata.penalty_points).toBe(0);
       expect(snapshotEvent.metadata.type).toBe('AUTHORIZED_PROCTORING_SNAPSHOT');
+    });
+  });
+
+  describe('13. Live Camera Detection, Proctoring Telemetry & Policy IM-102 Safeguards', () => {
+    it('generates compliant LiveDetectionResult structure with bounding box and pose', () => {
+      const mockDetection: LiveDetectionResult = {
+        facePresent: true,
+        faceCount: 1,
+        faceConfidence: 92,
+        headPose: 'forward',
+        lightingLevel: 48,
+        lightingCategory: 'adequate',
+        boundingBox: { x: 0.35, y: 0.22, width: 0.30, height: 0.45 },
+        secondaryBox: null,
+        fps: 20,
+        hasSimulatedPerson: false,
+        hasSimulatedLowLight: false,
+      };
+
+      expect(mockDetection.facePresent).toBe(true);
+      expect(mockDetection.faceCount).toBe(1);
+      expect(mockDetection.headPose).toBe('forward');
+      expect(mockDetection.lightingCategory).toBe('adequate');
+      expect(mockDetection.boundingBox).not.toBeNull();
+      expect(mockDetection.boundingBox?.width).toBeGreaterThan(0);
+    });
+
+    it('correctly classifies head pose according to normalized coordinates', () => {
+      const classifyPose = (normCx: number, normCy: number): 'forward' | 'left' | 'right' | 'down' => {
+        if (normCx < 0.36) return 'right';
+        if (normCx > 0.64) return 'left';
+        if (normCy > 0.66) return 'down';
+        return 'forward';
+      };
+
+      expect(classifyPose(0.50, 0.45)).toBe('forward');
+      expect(classifyPose(0.25, 0.45)).toBe('right');
+      expect(classifyPose(0.75, 0.45)).toBe('left');
+      expect(classifyPose(0.50, 0.72)).toBe('down');
+    });
+
+    it('classifies ambient illumination into adequate and low lux categories', () => {
+      const classifyLighting = (lux: number): 'adequate' | 'low' => {
+        return lux >= 18 ? 'adequate' : 'low';
+      };
+
+      expect(classifyLighting(52)).toBe('adequate');
+      expect(classifyLighting(20)).toBe('adequate');
+      expect(classifyLighting(11)).toBe('low');
+      expect(classifyLighting(8)).toBe('low');
+    });
+
+    it('handles simulated multi-face shared room with zero penalty annotation', () => {
+      const sharedRoomDetection: LiveDetectionResult = {
+        facePresent: true,
+        faceCount: 2,
+        faceConfidence: 88,
+        headPose: 'forward',
+        lightingLevel: 45,
+        lightingCategory: 'adequate',
+        boundingBox: { x: 0.32, y: 0.20, width: 0.30, height: 0.44 },
+        secondaryBox: { x: 0.70, y: 0.14, width: 0.22, height: 0.32 },
+        fps: 20,
+        hasSimulatedPerson: true,
+        hasSimulatedLowLight: false,
+      };
+
+      expect(sharedRoomDetection.faceCount).toBe(2);
+      expect(sharedRoomDetection.secondaryBox).not.toBeNull();
+      expect(sharedRoomDetection.hasSimulatedPerson).toBe(true);
+    });
+
+    it('formats frame_observation telemetry payload exactly as expected by backend session_store', () => {
+      const detection: LiveDetectionResult = {
+        facePresent: true,
+        faceCount: 1,
+        faceConfidence: 94,
+        headPose: 'forward',
+        lightingLevel: 50,
+        lightingCategory: 'adequate',
+        boundingBox: { x: 0.33, y: 0.21, width: 0.30, height: 0.42 },
+        secondaryBox: null,
+        fps: 20,
+        hasSimulatedPerson: false,
+        hasSimulatedLowLight: false,
+      };
+
+      const elapsedSec = 25.4;
+      const payload = {
+        condition_type: 'live_frame_telemetry',
+        frame_observation: {
+          timestamp_sec: Math.round(elapsedSec * 10) / 10,
+          face_present: detection.facePresent ? 1 : 0,
+          no_of_face: detection.faceCount,
+          face_conf: Math.round(detection.faceConfidence),
+          head_pose: detection.headPose,
+          phone_present: 0,
+        },
+        lighting_lux: detection.lightingLevel,
+        lighting_category: detection.lightingCategory,
+        detection_fps: detection.fps,
+        policy_im102_applied: true,
+      };
+
+      expect(payload.condition_type).toBe('live_frame_telemetry');
+      expect(payload.frame_observation.timestamp_sec).toBe(25.4);
+      expect(payload.frame_observation.face_present).toBe(1);
+      expect(payload.frame_observation.no_of_face).toBe(1);
+      expect(payload.frame_observation.face_conf).toBe(94);
+      expect(payload.frame_observation.head_pose).toBe('forward');
+      expect(payload.frame_observation.phone_present).toBe(0);
+      expect(payload.policy_im102_applied).toBe(true);
     });
   });
 

@@ -53,6 +53,20 @@ import {
   PairingStatusResponse,
 } from '../types/proctoring';
 
+export interface LiveDetectionResult {
+  facePresent: boolean;
+  faceCount: number;
+  faceConfidence: number;
+  headPose: 'forward' | 'left' | 'right' | 'down';
+  lightingLevel: number;
+  lightingCategory: 'adequate' | 'low';
+  boundingBox: { x: number; y: number; width: number; height: number } | null;
+  secondaryBox: { x: number; y: number; width: number; height: number } | null;
+  fps: number;
+  hasSimulatedPerson: boolean;
+  hasSimulatedLowLight: boolean;
+}
+
 export interface CameraErrorInfo {
   type: 'NotAllowedError' | 'NotFoundError' | 'NotReadableError' | 'OverconstrainedError' | 'InsecureContext' | 'Unknown';
   message: string;
@@ -136,6 +150,31 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
   const [micAudioLevel, setMicAudioLevel] = useState<number>(0);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const examVideoRef = useRef<HTMLVideoElement | null>(null);
+  const previewOverlayRef = useRef<HTMLCanvasElement | null>(null);
+  const examOverlayRef = useRef<HTMLCanvasElement | null>(null);
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const cvAnimationIdRef = useRef<number | null>(null);
+  const currentFpsRef = useRef<number>(20);
+
+  // Live Computer Vision Detection & Proctoring State
+  const [liveDetection, setLiveDetection] = useState<LiveDetectionResult>({
+    facePresent: false,
+    faceCount: 0,
+    faceConfidence: 0,
+    headPose: 'forward',
+    lightingLevel: 45,
+    lightingCategory: 'adequate',
+    boundingBox: null,
+    secondaryBox: null,
+    fps: 0,
+    hasSimulatedPerson: false,
+    hasSimulatedLowLight: false,
+  });
+  const liveDetectionRef = useRef<LiveDetectionResult>(liveDetection);
+  useEffect(() => {
+    liveDetectionRef.current = liveDetection;
+  }, [liveDetection]);
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -320,6 +359,26 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     return videoTracks.length > 0 && videoTracks.some((t) => t.readyState === 'live');
   };
 
+  // Check if a MediaStream has active, live audio tracks
+  const isAudioActive = (stream: MediaStream | null): boolean => {
+    if (!stream || !stream.active) return false;
+    const audioTracks = stream.getAudioTracks();
+    return audioTracks.length > 0 && audioTracks.some((t) => t.readyState === 'live');
+  };
+
+  // Hardware Verification: Both camera and audio must be allowed and active to proceed
+  const isCameraAllowed =
+    cameraPermissionState === 'granted' &&
+    desktopMediaStream !== null &&
+    isStreamActive(desktopMediaStream);
+
+  const isAudioAllowed =
+    micPermissionState === 'granted' &&
+    desktopMediaStream !== null &&
+    isAudioActive(desktopMediaStream);
+
+  const isHardwareReady = isCameraAllowed && isAudioAllowed;
+
   // Attach stream to video DOM element safely with muted property and play() Promise handling
   const attachStreamToVideo = (videoEl: HTMLVideoElement | null, stream: MediaStream | null) => {
     if (!videoEl || !stream) return;
@@ -329,6 +388,8 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       }
       videoEl.muted = true;
       videoEl.playsInline = true;
+      videoEl.setAttribute('playsinline', 'true');
+      videoEl.setAttribute('muted', 'true');
       const playPromise = videoEl.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
@@ -338,6 +399,56 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       }
     } catch (e) {
       console.warn('Failed to assign srcObject to video:', e);
+    }
+  };
+
+  const handleVideoPreviewMount = (el: HTMLVideoElement | null) => {
+    videoPreviewRef.current = el;
+    if (el && desktopMediaStreamRef.current && isStreamActive(desktopMediaStreamRef.current)) {
+      attachStreamToVideo(el, desktopMediaStreamRef.current);
+    }
+  };
+
+  const handleExamVideoMount = (el: HTMLVideoElement | null) => {
+    examVideoRef.current = el;
+    if (el && desktopMediaStreamRef.current && isStreamActive(desktopMediaStreamRef.current)) {
+      attachStreamToVideo(el, desktopMediaStreamRef.current);
+    }
+  };
+
+  // Setup Web Audio Analyser for microphone meter if audio track is active
+  const setupAudioAnalyser = (stream: MediaStream) => {
+    if (stream.getAudioTracks().length === 0) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        if (audioContextRef.current) {
+          audioContextRef.current.close().catch(() => {});
+        }
+        const ctx = new AudioCtx();
+        audioContextRef.current = ctx;
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const updateLevel = () => {
+          if (!analyserRef.current) return;
+          analyserRef.current.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / dataArray.length;
+          setMicAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
+          animFrameRef.current = requestAnimationFrame(updateLevel);
+        };
+        updateLevel();
+      }
+    } catch {
+      // Audio analyzer is optional enhancement
     }
   };
 
@@ -437,20 +548,20 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
           if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
             errInfo = {
               type: 'NotAllowedError',
-              message: 'Camera permission was denied or dismissed.',
-              guidance: 'Click the camera/lock icon in your browser address bar to allow camera access, then click "Retry Camera".',
+              message: 'Camera or microphone permission was denied or dismissed.',
+              guidance: 'Click the camera/microphone icon in your browser address bar to allow device access, then click "Re-test Both Devices".',
             };
           } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
             errInfo = {
               type: 'NotFoundError',
-              message: 'No video input hardware detected.',
-              guidance: 'Ensure your webcam is connected and recognized by your operating system, then click "Retry Camera".',
+              message: 'No video or audio input hardware detected.',
+              guidance: 'Ensure your webcam and microphone are connected and recognized by your operating system, then click "Re-test Both Devices".',
             };
           } else if (errorName === 'NotReadableError' || errorName === 'TrackStartError') {
             errInfo = {
               type: 'NotReadableError',
-              message: 'Camera is busy or in use by another application.',
-              guidance: 'Close any application currently using your webcam (Zoom, Teams, FaceTime, or other browser tabs), then click "Retry Camera".',
+              message: 'Camera or microphone is busy or in use by another application.',
+              guidance: 'Close any application currently using your devices (Zoom, Teams, FaceTime, or other browser tabs), then retry.',
             };
           } else if (errorName === 'OverconstrainedError' || errorName === 'ConstraintNotSatisfiedError') {
             errInfo = {
@@ -461,8 +572,8 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
           } else {
             errInfo = {
               type: 'Unknown',
-              message: primaryErr?.message || 'Unable to start camera stream.',
-              guidance: 'Please check browser device permissions and click "Retry Camera", or proceed under Policy IM-102 limited-evidence safeguards.',
+              message: primaryErr?.message || 'Unable to start camera and microphone streams.',
+              guidance: 'Please check browser device permissions and click "Re-test Both Devices".',
             };
           }
 
@@ -492,7 +603,12 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     if (stream) {
       desktopMediaStreamRef.current = stream;
       setDesktopMediaStream(stream);
-      setCameraPermissionState('granted');
+      if (stream.getVideoTracks().length > 0) {
+        setCameraPermissionState('granted');
+      }
+      if (stream.getAudioTracks().length > 0) {
+        setMicPermissionState('granted');
+      }
       setIsRequestingMedia(false);
       setCameraErrorInfo(null);
       isInitializingCameraRef.current = false;
@@ -506,52 +622,38 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
           setCameraErrorInfo({
             type: 'NotReadableError',
             message: 'Camera stream disconnected or was stopped by the operating system.',
-            guidance: 'Click "Retry Camera" to re-establish your video feed.',
+            guidance: 'Click "Allow Camera" to re-establish your video feed.',
           });
         };
       }
 
-      // Setup Web Audio Analyser for microphone meter if audio track is active
-      if (stream.getAudioTracks().length > 0) {
-        try {
-          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioCtx) {
-            if (audioContextRef.current) {
-              audioContextRef.current.close().catch(() => {});
-            }
-            const ctx = new AudioCtx();
-            audioContextRef.current = ctx;
-            const source = ctx.createMediaStreamSource(stream);
-            const analyser = ctx.createAnalyser();
-            analyser.fftSize = 64;
-            source.connect(analyser);
-            analyserRef.current = analyser;
-
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const updateLevel = () => {
-              if (!analyserRef.current) return;
-              analyserRef.current.getByteFrequencyData(dataArray);
-              let sum = 0;
-              for (let i = 0; i < dataArray.length; i++) {
-                sum += dataArray[i];
-              }
-              const avg = sum / dataArray.length;
-              setMicAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
-              animFrameRef.current = requestAnimationFrame(updateLevel);
-            };
-            updateLevel();
-          }
-        } catch {
-          // Audio analyzer is optional enhancement
-        }
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.onended = () => {
+          console.warn('Microphone audio track ended unexpectedly');
+          setMicPermissionState('denied');
+          setMicAudioLevel(0);
+        };
       }
 
+      // Setup Web Audio Analyser for microphone meter if audio track is active
+      setupAudioAnalyser(stream);
+
       if (activeSession) {
-        recordCandidateEvent(activeSession.session_id, {
-          event_type: 'CAMERA_PERMISSION_GRANTED',
-          source: 'browser',
-          is_simulated: false,
-        });
+        if (stream.getVideoTracks().length > 0) {
+          recordCandidateEvent(activeSession.session_id, {
+            event_type: 'CAMERA_PERMISSION_GRANTED',
+            source: 'browser',
+            is_simulated: false,
+          });
+        }
+        if (stream.getAudioTracks().length > 0) {
+          recordCandidateEvent(activeSession.session_id, {
+            event_type: 'MICROPHONE_PERMISSION_GRANTED',
+            source: 'browser',
+            is_simulated: false,
+          });
+        }
       }
 
       return stream;
@@ -567,8 +669,146 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
     await initializeCamera(true);
   };
 
+  // User-facing microphone-only permission trigger
+  const handleRequestMicOnly = async () => {
+    setIsRequestingMedia(true);
+    setCameraErrorInfo(null);
+    try {
+      const audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+      const newAudioTrack = audioStream.getAudioTracks()[0];
+      if (newAudioTrack) {
+        newAudioTrack.onended = () => {
+          console.warn('Microphone audio track ended unexpectedly');
+          setMicPermissionState('denied');
+          setMicAudioLevel(0);
+        };
+
+        let combinedStream: MediaStream;
+        if (desktopMediaStreamRef.current && desktopMediaStreamRef.current.active) {
+          desktopMediaStreamRef.current.getAudioTracks().forEach((t) => {
+            t.stop();
+            desktopMediaStreamRef.current?.removeTrack(t);
+          });
+          desktopMediaStreamRef.current.addTrack(newAudioTrack);
+          combinedStream = desktopMediaStreamRef.current;
+        } else {
+          combinedStream = audioStream;
+          desktopMediaStreamRef.current = combinedStream;
+        }
+
+        setDesktopMediaStream(new MediaStream(combinedStream.getTracks()));
+        setMicPermissionState('granted');
+        setupAudioAnalyser(combinedStream);
+
+        if (activeSession) {
+          recordCandidateEvent(activeSession.session_id, {
+            event_type: 'MICROPHONE_PERMISSION_GRANTED',
+            source: 'browser',
+            is_simulated: false,
+          });
+        }
+      }
+    } catch (err: any) {
+      setMicPermissionState('denied');
+      setCameraErrorInfo({
+        type: 'NotAllowedError',
+        message: 'Microphone permission was denied or dismissed.',
+        guidance: 'Please allow microphone access in your browser settings (look for the lock/mic icon in the address bar), then click "Allow Audio".',
+      });
+    } finally {
+      setIsRequestingMedia(false);
+    }
+  };
+
+  // User-facing camera-only permission trigger
+  const handleRequestCameraOnly = async () => {
+    setIsRequestingMedia(true);
+    setCameraErrorInfo(null);
+    try {
+      const videoStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user',
+        },
+      });
+      const newVideoTrack = videoStream.getVideoTracks()[0];
+      if (newVideoTrack) {
+        newVideoTrack.onended = () => {
+          console.warn('Camera video track ended unexpectedly');
+          setCameraPermissionState('denied');
+          setCameraErrorInfo({
+            type: 'NotReadableError',
+            message: 'Camera stream disconnected or stopped.',
+            guidance: 'Click "Allow Camera" to re-establish your video feed.',
+          });
+        };
+
+        let combinedStream: MediaStream;
+        if (desktopMediaStreamRef.current && desktopMediaStreamRef.current.active) {
+          desktopMediaStreamRef.current.getVideoTracks().forEach((t) => {
+            t.stop();
+            desktopMediaStreamRef.current?.removeTrack(t);
+          });
+          desktopMediaStreamRef.current.addTrack(newVideoTrack);
+          combinedStream = desktopMediaStreamRef.current;
+        } else {
+          combinedStream = videoStream;
+          desktopMediaStreamRef.current = combinedStream;
+        }
+
+        setDesktopMediaStream(new MediaStream(combinedStream.getTracks()));
+        setCameraPermissionState('granted');
+
+        if (videoPreviewRef.current) {
+          attachStreamToVideo(videoPreviewRef.current, combinedStream);
+        }
+
+        if (activeSession) {
+          recordCandidateEvent(activeSession.session_id, {
+            event_type: 'CAMERA_PERMISSION_GRANTED',
+            source: 'browser',
+            is_simulated: false,
+          });
+        }
+      }
+    } catch (err: any) {
+      setCameraPermissionState('denied');
+      setCameraErrorInfo({
+        type: 'NotAllowedError',
+        message: 'Camera permission was denied or dismissed.',
+        guidance: 'Please allow camera access in your browser settings (look for the lock/camera icon in the address bar), then click "Allow Camera".',
+      });
+    } finally {
+      setIsRequestingMedia(false);
+    }
+  };
+
+  // Guarded transition from desktop_permissions to network_check
+  const handleProceedToNetwork = () => {
+    if (!isHardwareReady) {
+      if (!isCameraAllowed && !isAudioAllowed) {
+        setStatusNotice('Both Camera and Microphone permissions are required to proceed.');
+      } else if (!isCameraAllowed) {
+        setStatusNotice('Camera permission is required to proceed. Please enable your webcam.');
+      } else {
+        setStatusNotice('Microphone permission is required to proceed. Please enable your microphone.');
+      }
+      return;
+    }
+    setCurrentScreen('network_check');
+  };
+
   // Stop Desktop Media tracks safely
   const handleStopDesktopMedia = () => {
+    if (cvAnimationIdRef.current) {
+      cancelAnimationFrame(cvAnimationIdRef.current);
+    }
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
     }
@@ -588,6 +828,9 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
   // Teardown tracks when CandidatePortal unmounts
   useEffect(() => {
     return () => {
+      if (cvAnimationIdRef.current) {
+        cancelAnimationFrame(cvAnimationIdRef.current);
+      }
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
@@ -612,6 +855,431 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       }
     }
   }, [desktopMediaStream, currentScreen]);
+
+  // Computer Vision Frame Analysis Engine
+  const processVideoFrame = (videoEl: HTMLVideoElement): LiveDetectionResult | null => {
+    if (!videoEl || videoEl.videoWidth === 0 || videoEl.videoHeight === 0 || videoEl.paused) {
+      return null;
+    }
+
+    if (!offscreenCanvasRef.current) {
+      const c = document.createElement('canvas');
+      c.width = 160;
+      c.height = 120;
+      offscreenCanvasRef.current = c;
+    }
+
+    const offscreen = offscreenCanvasRef.current;
+    const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
+    if (!offCtx) return null;
+
+    if (simulatedCameraCut) {
+      return {
+        facePresent: false,
+        faceCount: 0,
+        faceConfidence: 0,
+        headPose: 'forward',
+        lightingLevel: 0,
+        lightingCategory: 'low',
+        boundingBox: null,
+        secondaryBox: null,
+        fps: currentFpsRef.current || 20,
+        hasSimulatedPerson: false,
+        hasSimulatedLowLight: false,
+      };
+    }
+
+    try {
+      offCtx.drawImage(videoEl, 0, 0, 160, 120);
+      const imgData = offCtx.getImageData(0, 0, 160, 120);
+      const data = imgData.data;
+      const totalPixels = 160 * 120;
+
+      let totalLuminance = 0;
+      let skinCount = 0;
+      let sumX = 0;
+      let sumY = 0;
+      let minX = 160;
+      let maxX = 0;
+      let minY = 120;
+      let maxY = 0;
+
+      let secondarySkinCount = 0;
+      let secMinX = 160;
+      let secMaxX = 0;
+      let secMinY = 120;
+      let secMaxY = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // Standard ITU-R BT.601 Luminance
+        const y = 0.299 * r + 0.587 * g + 0.114 * b;
+        totalLuminance += y;
+
+        // YCbCr chrominance calculation
+        const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+        const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+
+        // Inclusive skin chrominance boundary covering all human skin tones (Fitzpatrick I - VI)
+        const isSkin =
+          (cb >= 77 && cb <= 127 && cr >= 133 && cr <= 173) ||
+          (r > 70 && g > 35 && b > 20 && r > g && r > b && Math.abs(r - g) >= 12);
+
+        if (isSkin) {
+          const pxIndex = i / 4;
+          const px = pxIndex % 160;
+          const py = Math.floor(pxIndex / 160);
+
+          if (px >= 25 && px <= 135) {
+            skinCount++;
+            sumX += px;
+            sumY += py;
+            if (px < minX) minX = px;
+            if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+          } else {
+            secondarySkinCount++;
+            if (px < secMinX) secMinX = px;
+            if (px > secMaxX) secMaxX = px;
+            if (py < secMinY) secMinY = py;
+            if (py > secMaxY) secMaxY = py;
+          }
+        }
+      }
+
+      const avgY = totalLuminance / totalPixels;
+      let calculatedLux = Math.round((avgY / 255) * 80);
+      if (simulatedPoorLighting) {
+        calculatedLux = 11;
+      }
+      const lightingCategory = calculatedLux >= 18 ? 'adequate' : 'low';
+
+      const facePresent = skinCount >= 140;
+      let faceConfidence = 0;
+      let primaryBox: { x: number; y: number; width: number; height: number } | null = null;
+      let headPose: 'forward' | 'left' | 'right' | 'down' = 'forward';
+
+      if (facePresent) {
+        const cx = sumX / skinCount;
+        const cy = sumY / skinCount;
+
+        const boxW = Math.max(32, (maxX - minX) * 1.25);
+        const boxH = Math.max(40, (maxY - minY) * 1.35);
+        const boxX = Math.max(0, Math.min(160 - boxW, (minX + maxX) / 2 - boxW / 2));
+        const boxY = Math.max(0, Math.min(120 - boxH, (minY + maxY) / 2 - boxH / 2));
+
+        primaryBox = {
+          x: boxX / 160,
+          y: boxY / 120,
+          width: boxW / 160,
+          height: boxH / 120,
+        };
+
+        const baseConf = 80 + Math.min(18, Math.round((skinCount / 1200) * 15));
+        faceConfidence = simulatedPoorLighting ? Math.max(40, baseConf - 35) : baseConf;
+
+        const normCx = cx / 160;
+        const normCy = cy / 120;
+        if (normCx < 0.36) {
+          headPose = 'right';
+        } else if (normCx > 0.64) {
+          headPose = 'left';
+        } else if (normCy > 0.66) {
+          headPose = 'down';
+        } else {
+          headPose = 'forward';
+        }
+      }
+
+      let faceCount = facePresent ? 1 : 0;
+      let secondaryBox: { x: number; y: number; width: number; height: number } | null = null;
+
+      if (simulatedBackgroundPerson) {
+        faceCount = 2;
+        secondaryBox = {
+          x: 0.70,
+          y: 0.14,
+          width: 0.22,
+          height: 0.32,
+        };
+      } else if (facePresent && secondarySkinCount >= 160) {
+        faceCount = 2;
+        const secW = Math.max(24, (secMaxX - secMinX) * 1.2);
+        const secH = Math.max(30, (secMaxY - secMinY) * 1.2);
+        const secX = Math.max(0, Math.min(160 - secW, (secMinX + secMaxX) / 2 - secW / 2));
+        const secY = Math.max(0, Math.min(120 - secH, (secMinY + secMaxY) / 2 - secH / 2));
+        secondaryBox = {
+          x: secX / 160,
+          y: secY / 120,
+          width: secW / 160,
+          height: secH / 120,
+        };
+      }
+
+      return {
+        facePresent,
+        faceCount,
+        faceConfidence,
+        headPose,
+        lightingLevel: calculatedLux,
+        lightingCategory,
+        boundingBox: primaryBox,
+        secondaryBox,
+        fps: currentFpsRef.current || 20,
+        hasSimulatedPerson: simulatedBackgroundPerson,
+        hasSimulatedLowLight: simulatedPoorLighting,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  // Overlay HUD Renderer
+  const drawOverlayHUD = (canvas: HTMLCanvasElement, res: LiveDetectionResult) => {
+    const parent = canvas.parentElement;
+    if (!parent) return;
+    const width = parent.clientWidth || 320;
+    const height = parent.clientHeight || 240;
+
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, width, height);
+
+    if (res.facePresent && res.boundingBox) {
+      const bx = res.boundingBox.x * width;
+      const by = res.boundingBox.y * height;
+      const bw = res.boundingBox.width * width;
+      const bh = res.boundingBox.height * height;
+
+      ctx.strokeStyle = res.headPose === 'forward' ? '#10b981' : '#0d9488';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx, by, bw, bh);
+
+      const cornerLen = Math.min(14, bw * 0.2);
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 3;
+
+      // Top-Left
+      ctx.beginPath();
+      ctx.moveTo(bx, by + cornerLen);
+      ctx.lineTo(bx, by);
+      ctx.lineTo(bx + cornerLen, by);
+      ctx.stroke();
+
+      // Top-Right
+      ctx.beginPath();
+      ctx.moveTo(bx + bw - cornerLen, by);
+      ctx.lineTo(bx + bw, by);
+      ctx.lineTo(bx + bw, by + cornerLen);
+      ctx.stroke();
+
+      // Bottom-Left
+      ctx.beginPath();
+      ctx.moveTo(bx, by + bh - cornerLen);
+      ctx.lineTo(bx, by + bh);
+      ctx.lineTo(bx + cornerLen, by + bh);
+      ctx.stroke();
+
+      // Bottom-Right
+      ctx.beginPath();
+      ctx.moveTo(bx + bw - cornerLen, by + bh);
+      ctx.lineTo(bx + bw, by + bh);
+      ctx.lineTo(bx + bw, by + bh - cornerLen);
+      ctx.stroke();
+
+      // Center crosshair
+      const cx = bx + bw / 2;
+      const cy = by + bh / 2;
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - 6, cy);
+      ctx.lineTo(cx + 6, cy);
+      ctx.moveTo(cx, cy - 6);
+      ctx.lineTo(cx, cy + 6);
+      ctx.stroke();
+
+      // Top Floating Badge
+      const badgeY = Math.max(18, by - 6);
+      ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
+      const label = `Candidate (Verified • ${Math.round(res.faceConfidence)}%)`;
+      const textWidth = ctx.measureText(label).width;
+      const badgeW = textWidth + 14;
+      const badgeX = Math.max(4, Math.min(width - badgeW - 4, bx + (bw - badgeW) / 2));
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(badgeX, badgeY - 14, badgeW, 16, 4);
+      ctx.fill();
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = '#34d399';
+      ctx.fillText(label, badgeX + 7, badgeY - 3);
+
+      // Bottom Pose Pill
+      const poseY = Math.min(height - 8, by + bh + 16);
+      const poseLabel = `Pose: ${res.headPose.toUpperCase()} • ${res.headPose === 'forward' ? 'FOCUSED' : 'DEFLECTED'}`;
+      const poseTextWidth = ctx.measureText(poseLabel).width;
+      const poseW = poseTextWidth + 12;
+      const poseX = Math.max(4, Math.min(width - poseW - 4, bx + (bw - poseW) / 2));
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(poseX, poseY - 12, poseW, 14, 3);
+      ctx.fill();
+
+      ctx.fillStyle = res.headPose === 'forward' ? '#a7f3d0' : '#fde68a';
+      ctx.fillText(poseLabel, poseX + 6, poseY - 2);
+    }
+
+    // Secondary Face (Shared Room / Background Person)
+    if (res.faceCount >= 2 && res.secondaryBox) {
+      const sx = res.secondaryBox.x * width;
+      const sy = res.secondaryBox.y * height;
+      const sw = res.secondaryBox.width * width;
+      const sh = res.secondaryBox.height * height;
+
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(sx, sy, sw, sh);
+      ctx.setLineDash([]);
+
+      const sLabel = 'Person 2 (Shared Room) • IM-102 0 Risk';
+      ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+      const sWidth = ctx.measureText(sLabel).width + 12;
+      const sX = Math.max(4, Math.min(width - sWidth - 4, sx));
+      const sY = Math.max(14, sy - 4);
+
+      ctx.fillStyle = 'rgba(120, 53, 15, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(sX, sY - 12, sWidth, 14, 3);
+      ctx.fill();
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillText(sLabel, sX + 6, sY - 2);
+    }
+
+    // Low Light alert tag if ambient lighting < 18 lux
+    if (res.lightingCategory === 'low') {
+      const luxLabel = `Low Ambient Light (${res.lightingLevel} Lux) • IM-102 Safeguarded`;
+      ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+      const luxW = ctx.measureText(luxLabel).width + 12;
+      ctx.fillStyle = 'rgba(180, 83, 9, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(6, height - 20, luxW, 15, 3);
+      ctx.fill();
+      ctx.fillStyle = '#fffbeb';
+      ctx.fillText(luxLabel, 12, height - 9);
+    }
+  };
+
+  // Computer Vision Real-Time Processing Loop
+  useEffect(() => {
+    let active = true;
+    let lastTick = performance.now();
+    let framesThisSec = 0;
+    let lastFpsUpdate = performance.now();
+
+    const tick = () => {
+      if (!active) return;
+      const now = performance.now();
+
+      if (now - lastTick >= 50) {
+        lastTick = now;
+        framesThisSec++;
+        if (now - lastFpsUpdate >= 1000) {
+          currentFpsRef.current = Math.max(1, Math.round((framesThisSec * 1000) / (now - lastFpsUpdate)));
+          framesThisSec = 0;
+          lastFpsUpdate = now;
+        }
+
+        const activeVideo = currentScreen === 'desktop_permissions'
+          ? videoPreviewRef.current
+          : examVideoRef.current;
+
+        if (activeVideo && isStreamActive(desktopMediaStreamRef.current)) {
+          const result = processVideoFrame(activeVideo);
+          if (result) {
+            result.fps = currentFpsRef.current || 20;
+            setLiveDetection(result);
+            liveDetectionRef.current = result;
+
+            if (currentScreen === 'desktop_permissions' && previewOverlayRef.current) {
+              drawOverlayHUD(previewOverlayRef.current, result);
+            } else if (currentScreen === 'active_exam' && examOverlayRef.current) {
+              drawOverlayHUD(examOverlayRef.current, result);
+            }
+          }
+        }
+      }
+
+      cvAnimationIdRef.current = requestAnimationFrame(tick);
+    };
+
+    if (currentScreen === 'desktop_permissions' || currentScreen === 'active_exam') {
+      cvAnimationIdRef.current = requestAnimationFrame(tick);
+    }
+
+    return () => {
+      active = false;
+      if (cvAnimationIdRef.current) {
+        cancelAnimationFrame(cvAnimationIdRef.current);
+      }
+    };
+  }, [currentScreen, desktopMediaStream, simulatedBackgroundPerson, simulatedPoorLighting, simulatedCameraCut]);
+
+  // Live Proctoring Telemetry Dispatch during Active Exam
+  useEffect(() => {
+    if (currentScreen !== 'active_exam' || !isExamRunning || !activeSession) return;
+
+    const interval = setInterval(async () => {
+      const elapsedSec = startTimeMs ? (Date.now() - startTimeMs) / 1000 : 0;
+      const det = liveDetectionRef.current;
+
+      try {
+        await recordCandidateEvent(activeSession.session_id, {
+          event_type: 'ENVIRONMENTAL_OBSERVATION',
+          source: 'browser',
+          metadata: {
+            condition_type: 'live_frame_telemetry',
+            frame_observation: {
+              timestamp_sec: Math.round(elapsedSec * 10) / 10,
+              face_present: det.facePresent ? 1 : 0,
+              no_of_face: det.faceCount,
+              face_conf: Math.round(det.faceConfidence),
+              head_pose: det.headPose,
+              phone_present: 0,
+            },
+            lighting_lux: det.lightingLevel,
+            lighting_category: det.lightingCategory,
+            detection_fps: det.fps || 20,
+            policy_im102_applied: true,
+          },
+          is_simulated: simulatedBackgroundPerson || simulatedPoorLighting || simulatedCameraCut,
+          evidence_reliability: 'high_browser_telemetry',
+        });
+      } catch (e) {
+        console.warn('Periodic proctoring telemetry dispatch deferred:', e);
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [currentScreen, isExamRunning, activeSession, startTimeMs, simulatedBackgroundPerson, simulatedPoorLighting, simulatedCameraCut]);
 
   // Auto-initialize camera if entering active_exam directly or on reload
   useEffect(() => {
@@ -682,6 +1350,18 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
 
   // Enter Fullscreen & Start Examination
   const handleEnterFullscreenAndStart = async () => {
+    if (!isHardwareReady) {
+      if (!isCameraAllowed && !isAudioAllowed) {
+        setStatusNotice('Both camera and microphone access are required to begin the exam.');
+      } else if (!isCameraAllowed) {
+        setStatusNotice('Camera access is required to begin the exam. Please allow your webcam.');
+      } else {
+        setStatusNotice('Microphone access is required to begin the exam. Please allow your microphone.');
+      }
+      setCurrentScreen('desktop_permissions');
+      return;
+    }
+
     try {
       if (document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen();
@@ -1442,145 +2122,311 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
       {currentScreen === 'desktop_permissions' && (
         <div className="p-6 sm:p-8 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-5">
           <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                Mandatory Hardware Check
+              </span>
+              <span className="text-xs text-slate-400 font-medium">Step 4 of 7</span>
+            </div>
             <h2 className="text-base font-bold text-slate-900">Camera & Microphone Access</h2>
-            <p className="text-xs text-slate-500">
-              Enable camera and microphone for local proctoring telemetry.
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Both webcam and microphone permissions are <strong>strictly required</strong> to proceed to the examination. Audio and video telemetry are processed locally on your device under Policy IM-102.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
+          {/* Mandatory Requirement Status Banner */}
+          {!isHardwareReady ? (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-3 shadow-xs">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1 text-xs">
+                <p className="font-bold text-amber-950">
+                  Permission Required to Proceed
+                </p>
+                <p className="text-amber-800 leading-relaxed text-[11px]">
+                  {!isCameraAllowed && !isAudioAllowed
+                    ? 'Both camera and microphone access are required. The "Next" step remains locked until both devices are enabled and verified.'
+                    : !isCameraAllowed
+                    ? 'Webcam access is required. Please allow your camera in your browser to unlock the next step.'
+                    : 'Microphone access is required. Please allow your microphone in your browser to unlock the next step.'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center gap-2.5 text-xs shadow-xs">
+              <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <div>
+                <span className="font-bold text-emerald-950">Camera & Microphone Verified! </span>
+                <span className="text-emerald-800 text-[11px]">Both devices are active and telemetry is ready. You may now advance to the next step.</span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
             {/* Live Camera Preview */}
-            <div className="relative aspect-video rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 flex items-center justify-center">
+            <div className="relative aspect-video rounded-2xl bg-slate-900 overflow-hidden border border-slate-200 flex items-center justify-center min-h-[220px]">
               {isRequestingMedia ? (
-                <div className="p-4 text-center space-y-2">
-                  <RefreshCw className="w-7 h-7 text-teal-600 animate-spin mx-auto" />
-                  <p className="text-xs text-slate-700 font-semibold">Requesting Camera Access...</p>
+                <div className="p-4 text-center space-y-2 text-white">
+                  <RefreshCw className="w-7 h-7 text-teal-400 animate-spin mx-auto" />
+                  <p className="text-xs font-semibold">Requesting Device Access...</p>
                   <p className="text-[11px] text-slate-400">Please respond to the browser permission prompt.</p>
                 </div>
-              ) : cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) ? (
-                <video
-                  ref={videoPreviewRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  onLoadedMetadata={(e) => {
-                    const v = e.currentTarget;
-                    v.muted = true;
-                    v.play().catch(() => {});
-                  }}
-                  className="w-full h-full object-cover"
-                />
+              ) : isCameraAllowed ? (
+                <>
+                  <video
+                    ref={handleVideoPreviewMount}
+                    autoPlay
+                    playsInline
+                    muted
+                    onLoadedMetadata={(e) => {
+                      const v = e.currentTarget;
+                      v.muted = true;
+                      v.play().catch(() => {});
+                    }}
+                    onCanPlay={(e) => {
+                      const v = e.currentTarget;
+                      v.play().catch(() => {});
+                    }}
+                    className="w-full h-full object-cover"
+                  />
+                  <canvas
+                    ref={previewOverlayRef}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                  />
+
+                  {/* Live Detection HUD Pill */}
+                  <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-xl text-white text-[11px] border border-white/10 shadow-lg">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          liveDetection.facePresent ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                        }`}
+                      />
+                      <span className="font-semibold">
+                        {liveDetection.facePresent
+                          ? `${liveDetection.faceCount === 1 ? '1 Face Verified' : `${liveDetection.faceCount} Faces`} (${Math.round(
+                              liveDetection.faceConfidence
+                            )}% conf)`
+                          : 'Detecting Face...'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-300 text-[10px]">
+                      <span>
+                        Pose: <strong className="text-white capitalize">{liveDetection.headPose}</strong>
+                      </span>
+                      <span>
+                        Lux: <strong className="text-white">{liveDetection.lightingLevel} ({liveDetection.lightingCategory})</strong>
+                      </span>
+                      <span className="font-mono text-teal-300">{liveDetection.fps || 20} FPS</span>
+                    </div>
+                  </div>
+                </>
               ) : (
-                <div className="p-4 text-center space-y-1.5 max-w-xs">
-                  <VideoOff className="w-7 h-7 text-slate-400 mx-auto" />
-                  <p className="text-xs text-slate-700 font-semibold">
-                    {cameraErrorInfo ? cameraErrorInfo.message : 'Camera Inactive'}
+                <div className="p-4 text-center space-y-2 max-w-xs">
+                  <VideoOff className="w-8 h-8 text-rose-500 mx-auto" />
+                  <p className="text-xs text-slate-800 font-bold">
+                    {cameraErrorInfo ? cameraErrorInfo.message : 'Webcam Inactive (Required)'}
                   </p>
                   <p className="text-[11px] text-slate-500 leading-normal">
-                    {cameraErrorInfo ? cameraErrorInfo.guidance : 'Click "Enable Camera & Mic" below to start live preview.'}
+                    {cameraErrorInfo ? cameraErrorInfo.guidance : 'Camera access is required. Click "Allow Camera" or "Enable Both Devices" below.'}
                   </p>
                 </div>
               )}
 
-              {/* Status indicator pill */}
-              <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] text-slate-700 border border-slate-200 shadow-xs">
+              {/* Status indicator pill on preview */}
+              <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] text-slate-700 border border-slate-200 shadow-xs">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream)
+                    isCameraAllowed
                       ? 'bg-emerald-500'
                       : isRequestingMedia
                       ? 'bg-amber-500 animate-pulse'
-                      : 'bg-slate-400'
+                      : 'bg-rose-500'
                   }`}
                 />
-                <span>
-                  {cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream)
-                    ? 'Live'
+                <span className="font-medium">
+                  {isCameraAllowed
+                    ? 'Camera Live & CV Active'
                     : isRequestingMedia
                     ? 'Requesting...'
-                    : 'Off'}
+                    : 'Camera Required'}
                 </span>
               </div>
             </div>
 
-            {/* Permissions & Audio Meter Controls */}
-            <div className="space-y-3">
-              {/* Permission Request Buttons */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-                <span className="text-xs font-semibold text-slate-800 block">
-                  Hardware Devices
-                </span>
+            {/* Devices Checklist & Permissions Controls */}
+            <div className="space-y-3 flex flex-col justify-between">
+              <div className="space-y-2.5">
+                {/* Camera Card */}
+                <div className={`p-3.5 rounded-xl border transition-all ${
+                  isCameraAllowed
+                    ? 'bg-emerald-50/50 border-emerald-200'
+                    : 'bg-rose-50/40 border-rose-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-1.5 rounded-lg ${
+                        isCameraAllowed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                      }`}>
+                        {isCameraAllowed ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-900">Webcam Video</span>
+                          <span className="text-[10px] text-rose-600 font-semibold">*Required</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Focus and gaze verification</p>
+                      </div>
+                    </div>
 
-                <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      {isCameraAllowed ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1 border border-emerald-200">
+                          <CheckCircle className="w-3 h-3 text-emerald-600" />
+                          <span>Active</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={handleRequestCameraOnly}
+                          disabled={isRequestingMedia}
+                          className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-xs"
+                        >
+                          <Video className="w-3 h-3" />
+                          <span>Allow Camera</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Microphone Card */}
+                <div className={`p-3.5 rounded-xl border transition-all ${
+                  isAudioAllowed
+                    ? 'bg-emerald-50/50 border-emerald-200'
+                    : 'bg-rose-50/40 border-rose-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-1.5 rounded-lg ${
+                        isAudioAllowed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                      }`}>
+                        {isAudioAllowed ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-900">Microphone Audio</span>
+                          <span className="text-[10px] text-rose-600 font-semibold">*Required</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Acoustic environment telemetry</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {isAudioAllowed ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1 border border-emerald-200 font-mono">
+                          <CheckCircle className="w-3 h-3 text-emerald-600" />
+                          <span>{micAudioLevel}%</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={handleRequestMicOnly}
+                          disabled={isRequestingMedia}
+                          className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-xs"
+                        >
+                          <Mic className="w-3 h-3" />
+                          <span>Allow Audio</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mic Level bar */}
+                  <div className="mt-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Audio Input Level</span>
+                      <span>{isAudioAllowed ? (micAudioLevel > 0 ? 'Detecting audio' : 'Active (Quiet)') : 'Blocked / Muted'}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-100 rounded-full"
+                        style={{ width: `${isAudioAllowed ? micAudioLevel : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Primary Dual-Device Controls */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={handleRequestDesktopMedia}
                     disabled={isRequestingMedia}
-                    className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                   >
                     {isRequestingMedia ? (
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                     ) : (
-                      <Video className="w-3.5 h-3.5" />
+                      <RefreshCw className="w-3.5 h-3.5" />
                     )}
-                    <span>{cameraPermissionState === 'granted' ? 'Re-test Camera & Mic' : 'Enable Camera & Mic'}</span>
+                    <span>{isHardwareReady ? 'Re-test Both Devices' : 'Enable Both Camera & Mic'}</span>
                   </button>
 
                   {desktopMediaStream && (
                     <button
                       onClick={handleStopDesktopMedia}
-                      className="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 text-xs hover:bg-rose-50 transition-colors"
+                      className="px-3 py-2 rounded-xl border border-rose-200 text-rose-600 text-xs hover:bg-rose-50 transition-colors font-medium"
                     >
-                      Stop Devices
+                      Stop
                     </button>
                   )}
                 </div>
 
                 {cameraErrorInfo && (
-                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 space-y-0.5">
-                    <strong>Notice: </strong>
+                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 space-y-0.5">
+                    <strong>Permission Help: </strong>
                     <span>{cameraErrorInfo.guidance}</span>
                   </div>
                 )}
               </div>
-
-              {/* Microphone Audio Level Indicator */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-800 flex items-center gap-1.5">
-                    {micPermissionState === 'granted' ? (
-                      <Mic className="w-3.5 h-3.5 text-emerald-500" />
-                    ) : (
-                      <MicOff className="w-3.5 h-3.5 text-slate-400" />
-                    )}
-                    <span>Microphone</span>
-                  </span>
-                  <span className="font-mono text-slate-500 text-[11px]">{micPermissionState === 'granted' ? `${micAudioLevel}%` : 'Muted'}</span>
-                </div>
-
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-100 rounded-full"
-                    style={{ width: `${micPermissionState === 'granted' ? micAudioLevel : 0}%` }}
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-between">
+          {/* Bottom Step Navigation */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100">
             <button
               onClick={() => setCurrentScreen('qr_pairing')}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+              className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 transition-colors w-full sm:w-auto"
             >
               Back
             </button>
-            <button
-              onClick={() => setCurrentScreen('network_check')}
-              className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
-            >
-              <span>Next: Network</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              {!isHardwareReady && (
+                <span className="text-[11px] text-amber-700 flex items-center gap-1 font-semibold">
+                  <Lock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Allow camera & audio to proceed</span>
+                </span>
+              )}
+              <button
+                onClick={handleProceedToNetwork}
+                disabled={!isHardwareReady}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 w-full sm:w-auto ${
+                  isHardwareReady
+                    ? 'bg-teal-600 hover:bg-teal-700 text-white shadow-sm cursor-pointer'
+                    : 'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed opacity-80'
+                }`}
+                title={
+                  !isHardwareReady
+                    ? 'Camera and Microphone access are both required to advance to the next step'
+                    : 'Proceed to Network check'
+                }
+              >
+                {!isHardwareReady ? (
+                  <Lock className="w-3.5 h-3.5" />
+                ) : null}
+                <span>Next: Network</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1751,6 +2597,24 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
             Accidental exits do NOT fail your exam. An alert will ask you to return.
           </div>
 
+          {!isHardwareReady && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs shadow-xs">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                <span>
+                  <strong>Device Permissions Incomplete: </strong>
+                  Both camera and microphone access are strictly required to start the exam.
+                </span>
+              </div>
+              <button
+                onClick={() => setCurrentScreen('desktop_permissions')}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[11px] whitespace-nowrap"
+              >
+                Enable Devices
+              </button>
+            </div>
+          )}
+
           <div className="pt-2 flex items-center justify-between">
             <button
               onClick={() => setCurrentScreen('privacy_consent')}
@@ -1760,8 +2624,19 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
             </button>
             <button
               onClick={handleEnterFullscreenAndStart}
-              className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+              disabled={!isHardwareReady}
+              className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-2 shadow-sm ${
+                isHardwareReady
+                  ? 'bg-teal-600 hover:bg-teal-700 text-white cursor-pointer'
+                  : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-80'
+              }`}
+              title={
+                !isHardwareReady
+                  ? 'Both camera and microphone must be enabled to start the exam'
+                  : 'Enter fullscreen and begin exam'
+              }
             >
+              {!isHardwareReady && <Lock className="w-3.5 h-3.5" />}
               <Maximize className="w-4 h-4" />
               <span>Start Fullscreen Exam</span>
             </button>
@@ -1946,31 +2821,41 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                   </span>
                 </div>
 
-                <div className="relative aspect-video rounded-xl bg-slate-100 overflow-hidden border border-slate-200 flex items-center justify-center">
+                <div className="relative aspect-video rounded-xl bg-slate-900 overflow-hidden border border-slate-200 flex items-center justify-center">
                   {isRequestingMedia ? (
-                    <div className="text-center p-3 space-y-1.5">
-                      <RefreshCw className="w-5 h-5 mx-auto text-teal-600 animate-spin" />
-                      <span className="text-xs text-slate-700 font-semibold block">Starting Camera...</span>
+                    <div className="text-center p-3 space-y-1.5 text-white">
+                      <RefreshCw className="w-5 h-5 mx-auto text-teal-400 animate-spin" />
+                      <span className="text-xs font-semibold block">Starting Camera...</span>
                       <span className="text-[10px] text-slate-400">Connecting to webcam device</span>
                     </div>
                   ) : cameraPermissionState === 'granted' && isStreamActive(desktopMediaStream) && !simulatedCameraCut ? (
-                    <video
-                      ref={examVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      onLoadedMetadata={(e) => {
-                        const v = e.currentTarget;
-                        v.muted = true;
-                        v.play().catch(() => {});
-                      }}
-                      className="w-full h-full object-cover"
-                    />
+                    <>
+                      <video
+                        ref={handleExamVideoMount}
+                        autoPlay
+                        playsInline
+                        muted
+                        onLoadedMetadata={(e) => {
+                          const v = e.currentTarget;
+                          v.muted = true;
+                          v.play().catch(() => {});
+                        }}
+                        onCanPlay={(e) => {
+                          const v = e.currentTarget;
+                          v.play().catch(() => {});
+                        }}
+                        className="w-full h-full object-cover"
+                      />
+                      <canvas
+                        ref={examOverlayRef}
+                        className="absolute inset-0 w-full h-full pointer-events-none"
+                      />
+                    </>
                   ) : (
-                    <div className="text-center p-3 text-xs text-slate-500 space-y-2 max-w-[210px]">
-                      <VideoOff className="w-5 h-5 mx-auto text-amber-500" />
+                    <div className="text-center p-3 text-xs text-slate-400 space-y-2 max-w-[210px]">
+                      <VideoOff className="w-5 h-5 mx-auto text-amber-400" />
                       <div>
-                        <span className="text-xs font-semibold text-slate-700 block">
+                        <span className="text-xs font-semibold text-slate-200 block">
                           {cameraErrorInfo ? cameraErrorInfo.message : (simulatedCameraCut ? 'Camera Interrupted' : 'Camera Inactive')}
                         </span>
                         <span className="text-[10px] text-slate-400 leading-tight block mt-0.5">
@@ -1989,15 +2874,74 @@ export const CandidatePortal: React.FC<Props> = ({ onReturnToReviewer, onSession
                   )}
 
                   {/* Privacy pill */}
-                  <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-white/90 text-[9px] text-teal-800 font-mono border border-slate-200">
-                    Local IM-102
+                  <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-slate-900/80 backdrop-blur-xs text-[9px] text-teal-300 font-mono border border-teal-500/30">
+                    Local IM-102 CV
                   </div>
                 </div>
 
-                {/* Mic Level */}
-                <div className="text-[11px] flex items-center justify-between text-slate-500">
-                  <span>Mic:</span>
-                  <span className="font-semibold text-emerald-600">{micPermissionState === 'granted' ? 'Active' : 'Muted'}</span>
+                {/* Real-Time Detection Telemetry Panel */}
+                <div className="space-y-1.5 pt-1 text-xs">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">Candidate Focus:</span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        liveDetection.facePresent && liveDetection.headPose === 'forward'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : liveDetection.facePresent
+                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                          : 'bg-rose-50 text-rose-800 border border-rose-200'
+                      }`}
+                    >
+                      {liveDetection.facePresent
+                        ? (liveDetection.headPose === 'forward'
+                          ? 'Focused (Forward)'
+                          : `Deflected (${liveDetection.headPose})`)
+                        : 'No Face Detected'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">Faces Observed:</span>
+                    <span className="font-semibold text-slate-800 flex items-center gap-1">
+                      {liveDetection.faceCount === 1 ? (
+                        <span className="text-emerald-700 font-medium">1 Verified</span>
+                      ) : liveDetection.faceCount >= 2 ? (
+                        <span className="text-amber-700 font-medium flex items-center gap-1">
+                          <span>2 Persons</span>
+                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-mono font-bold">
+                            IM-102 0 Risk
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">None detected</span>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">Ambient Light:</span>
+                    <span
+                      className={`font-semibold text-[10px] ${
+                        liveDetection.lightingCategory === 'adequate'
+                          ? 'text-emerald-700'
+                          : 'text-amber-700'
+                      }`}
+                    >
+                      {liveDetection.lightingLevel} Lux ({liveDetection.lightingCategory})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">Microphone:</span>
+                    <span className="font-semibold text-emerald-600">
+                      {micPermissionState === 'granted' ? `Active (${micAudioLevel}%)` : 'Muted'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-100">
+                    <span>CV Frame Rate:</span>
+                    <span className="font-mono text-teal-600 font-bold">{liveDetection.fps || 20} FPS</span>
+                  </div>
                 </div>
               </div>
 

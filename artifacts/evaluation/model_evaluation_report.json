@@ -169,7 +169,7 @@
   "behavioral_model": {
     "model_type": "LogisticRegression_BehavioralBaseline",
     "version": "1.0.0",
-    "trained_at": "2026-10-29T08:55:30.669082",
+    "trained_at": "2026-10-30T05:40:04.520513",
     "n_samples": 111,
     "n_features": 12,
     "feature_names": [
@@ -290,9 +290,9 @@
     "low_bandwidth_stability": "STABLE"
   },
   "cpu_performance": {
-    "frame_latency_ms": 0.015,
-    "frames_per_sec": 65197.3,
-    "session_scoring_latency_ms": 4.32,
+    "frame_latency_ms": 0.014,
+    "frames_per_sec": 72861.8,
+    "session_scoring_latency_ms": 20.31,
     "model_size_mb": 0.0063
   }
 }

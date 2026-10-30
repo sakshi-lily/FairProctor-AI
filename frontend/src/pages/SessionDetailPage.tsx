@@ -33,6 +33,7 @@ import {
 import { RiskBadge } from '../components/RiskBadge';
 import { StatusBadge } from '../components/StatusBadge';
 import { EvidenceInspectorModal } from '../components/EvidenceInspectorModal';
+import { FormattedMLExplanation } from '../components/FormattedMLExplanation';
 import { useProctorRole } from '../context/ProctorRoleContext';
 
 interface Props {
@@ -55,6 +56,7 @@ export const SessionDetailPage: React.FC<Props> = ({
   const [decisionChoice, setDecisionChoice] = useState<ReviewDecisionType>('NO_CONCERN');
   const [reviewerNotes, setReviewerNotes] = useState('');
   const [decisionFeedback, setDecisionFeedback] = useState<{ msg: string; isError: boolean } | null>(null);
+  const [isExplanationExpanded, setIsExplanationExpanded] = useState<boolean>(false);
 
   if (!session) {
     return (
@@ -234,22 +236,15 @@ export const SessionDetailPage: React.FC<Props> = ({
       </div>
 
       {/* Summary Explanation & Confidence Limitations */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Explanation Card */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-teal-600" />
-            ML Explanation
-          </h3>
-          <p className="text-xs leading-relaxed text-slate-700">
-            {session.summary_explanation}
-          </p>
-
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-4 text-[11px] text-slate-500">
-            <span>Model: <strong>v{session.model_version}</strong></span>
-            <span>Policy: <strong>{session.policy_version}</strong></span>
-          </div>
-        </div>
+      <div className={`grid grid-cols-1 ${isExplanationExpanded ? 'lg:grid-cols-1' : 'lg:grid-cols-2'} gap-4`}>
+        {/* Formatted ML Explanation Card */}
+        <FormattedMLExplanation
+          explanation={session.summary_explanation}
+          modelVersion={session.model_version}
+          policyVersion={session.policy_version}
+          isExpanded={isExplanationExpanded}
+          onToggleExpand={() => setIsExplanationExpanded((prev) => !prev)}
+        />
 
         {/* Limitations & Uncertainty Card */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">

@@ -557,6 +557,8 @@ class SessionStore:
                 state["poor_lighting"] = True
             if "bandwidth" in cond or "network" in cond:
                 state["network_degraded"] = True
+            if "frame_observation" in payload.metadata and isinstance(payload.metadata["frame_observation"], dict):
+                state.setdefault("live_video_observations", []).append(payload.metadata["frame_observation"])
         elif payload.event_type in [CandidateEventType.SESSION_SUBMITTED, CandidateEventType.SESSION_COMPLETED]:
             session.candidate_status = "COMPLETED"
 
@@ -662,29 +664,34 @@ class SessionStore:
         # Build video observations
         video_obs: Optional[List[dict]] = None
         if not camera_unavailable:
-            video_obs = [
-                {
-                    "timestamp_sec": 10.0,
-                    "face_present": 1,
-                    "no_of_face": 1,
-                    "face_conf": 42.0 if poor_lighting else 88.0,
-                    "head_pose": "forward",
-                    "phone_present": 0,
-                },
-                {
-                    "timestamp_sec": 30.0,
-                    "face_present": 1,
-                    "no_of_face": 1,
-                    "face_conf": 40.0 if poor_lighting else 89.0,
-                    "head_pose": "forward",
-                    "phone_present": 0,
-                }
-            ]
+            live_obs = state.get("live_video_observations", [])
+            if live_obs:
+                video_obs = [dict(o) for o in live_obs]
+            else:
+                video_obs = [
+                    {
+                        "timestamp_sec": 10.0,
+                        "face_present": 1,
+                        "no_of_face": 1,
+                        "face_conf": 42.0 if poor_lighting else 88.0,
+                        "head_pose": "forward",
+                        "phone_present": 0,
+                    },
+                    {
+                        "timestamp_sec": 30.0,
+                        "face_present": 1,
+                        "no_of_face": 1,
+                        "face_conf": 40.0 if poor_lighting else 89.0,
+                        "head_pose": "forward",
+                        "phone_present": 0,
+                    }
+                ]
             if background_person:
                 # Additional person in background: under IM-102 with shared room declared, this assigns 0 risk points!
+                max_t = max([float(o.get("timestamp_sec", 30.0)) for o in video_obs], default=30.0)
                 video_obs.extend([
                     {
-                        "timestamp_sec": 45.0,
+                        "timestamp_sec": max_t + 5.0,
                         "face_present": 1,
                         "no_of_face": 2,
                         "face_conf": 45.0 if poor_lighting else 84.0,
@@ -692,7 +699,7 @@ class SessionStore:
                         "phone_present": 0,
                     },
                     {
-                        "timestamp_sec": 50.0,
+                        "timestamp_sec": max_t + 10.0,
                         "face_present": 1,
                         "no_of_face": 2,
                         "face_conf": 46.0 if poor_lighting else 85.0,
